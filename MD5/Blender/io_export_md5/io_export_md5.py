@@ -934,7 +934,8 @@ if __name__ == "__main__":
   output_dir = os.getcwd()
   global scale
   scale = 1.00
-  accepted_arguments = ["output-dir=", "scale=", "help"]
+  mesh_name = ""
+  accepted_arguments = ["output-dir=", "scale=", "mesh=", "help"]
 
   def usage():
     print('Usage: blender file.blend --background --python io_export_md5.py -- --arg1 val1 --arg2 val2')
@@ -977,14 +978,27 @@ if __name__ == "__main__":
         print_executed_string()
         print("--scale expected float, received: "+arg)
         sys.exit(2)
+    if opt == '--mesh':
+      mesh_name = arg
+      
     if opt == '--help':
       usage()
       sys.exit(0)
         
   objList = [object for object in bpy.context.scene.objects if object.type == 'MESH']
+  export_count = 0
   for ob in objList:
-    print(ob.name)
-    ob.select = True
-    if ob.type == "MESH":
-      save_md5(md5Settings(savepath=output_dir+"/"+ob.name, exportMode="mesh & anim"))
-    ob.select = False
+    if ob.name == mesh_name or not mesh_name:
+      print(ob.name)
+      ob.select = True
+      if ob.type == "MESH":
+        save_md5(md5Settings(savepath=output_dir+"/"+ob.name, exportMode="mesh & anim"))
+        ob.select = False
+        export_count = export_count + 1
+        
+  if mesh_name and export_count == 0:
+    print("No such mesh: "+mesh_name)
+    sys.exit(2)
+  else:
+    print("Exported "+str(export_count)+" mesh(es).")
+    sys.exit(0)
