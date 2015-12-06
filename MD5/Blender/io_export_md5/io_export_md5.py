@@ -45,103 +45,119 @@ from bpy_extras.io_utils import ExportHelper
 
 #MATH UTILTY
 
-def vector_crossproduct(v1, v2):
-  return [
-    v1[1] * v2[2] - v1[2] * v2[1],
-    v1[2] * v2[0] - v1[0] * v2[2],
-    v1[0] * v2[1] - v1[1] * v2[0],
-    ]
+class MD5Math(object):
 
-def point_by_matrix(p, m):
-  #print( str(type( p )) + " " + str(type(m)) )
-  return [p[0] * m[0][0] + p[1] * m[1][0] + p[2] * m[2][0] + m[3][0],
-          p[0] * m[0][1] + p[1] * m[1][1] + p[2] * m[2][1] + m[3][1],
-          p[0] * m[0][2] + p[1] * m[1][2] + p[2] * m[2][2] + m[3][2]]
+  def vector_crossproduct(v1, v2):
+    return [
+      v1[1] * v2[2] - v1[2] * v2[1],
+      v1[2] * v2[0] - v1[0] * v2[2],
+      v1[0] * v2[1] - v1[1] * v2[0],
+      ]
 
-def vector_by_matrix(p, m):
-  return [p[0] * m.col[0][0] + p[1] * m.col[1][0] + p[2] * m.col[2][0],
-          p[0] * m.col[0][1] + p[1] * m.col[1][1] + p[2] * m.col[2][1],
-          p[0] * m.col[0][2] + p[1] * m.col[1][2] + p[2] * m.col[2][2]]
+  def point_by_matrix(p, m):
+    #print( str(type( p )) + " " + str(type(m)) )
+    return [p[0] * m[0][0] + p[1] * m[1][0] + p[2] * m[2][0] + m[3][0],
+            p[0] * m[0][1] + p[1] * m[1][1] + p[2] * m[2][1] + m[3][1],
+            p[0] * m[0][2] + p[1] * m[1][2] + p[2] * m[2][2] + m[3][2]]
 
-def vector_normalize(v):
-  l = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
-  try:
-    return v[0] / l, v[1] / l, v[2] / l
-  except:
-    return 1, 0, 0
+  def vector_by_matrix(p, m):
+    return [p[0] * m.col[0][0] + p[1] * m.col[1][0] + p[2] * m.col[2][0],
+            p[0] * m.col[0][1] + p[1] * m.col[1][1] + p[2] * m.col[2][1],
+            p[0] * m.col[0][2] + p[1] * m.col[1][2] + p[2] * m.col[2][2]]
 
-def matrix2quaternion(m):
-  s = math.sqrt(abs(m.col[0][0] + m.col[1][1] + m.col[2][2] + m.col[3][3]))
-  if s == 0.0:
-    x = abs(m.col[2][1] - m.col[1][2])
-    y = abs(m.col[0][2] - m.col[2][0])
-    z = abs(m.col[1][0] - m.col[0][1])
-    if   (x >= y) and (x >= z): return 1.0, 0.0, 0.0, 0.0
-    elif (y >= x) and (y >= z): return 0.0, 1.0, 0.0, 0.0
-    else:                       return 0.0, 0.0, 1.0, 0.0
-  return quaternion_normalize([
-    -(m.col[2][1] - m.col[1][2]) / (2.0 * s),
-    -(m.col[0][2] - m.col[2][0]) / (2.0 * s),
-    -(m.col[1][0] - m.col[0][1]) / (2.0 * s),
-    0.5 * s,
-    ])
-    
-def matrix_invert(m):
-  det = (m.col[0][0] * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2])
-       - m.col[1][0] * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2])
-       + m.col[2][0] * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]))
-  if det == 0.0: return None
-  det = 1.0 / det
-# transposed matrix
-#  r = [ [
-#      det * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2]),
-#    - det * (m.col[1][0] * m.col[2][2] - m.col[2][0] * m.col[1][2]),
-#      det * (m.col[1][0] * m.col[2][1] - m.col[2][0] * m.col[1][1]),
-#    ], [
-#    - det * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2]),
-#     det * (m.col[0][0] * m.col[2][2] - m.col[2][0] * m.col[0][2]),
-#   - det * (m.col[0][0] * m.col[2][1] - m.col[2][0] * m.col[0][1]),
-#    ], [
-#      det * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]),
-#    - det * (m.col[0][0] * m.col[1][2] - m.col[1][0] * m.col[0][2]),
-#      det * (m.col[0][0] * m.col[1][1] - m.col[1][0] * m.col[0][1]),
-#    ], [
-#      0.0,
-#      0.0,
-#      0.0,
-#    ] ]
-# original matrix from 2.61 compaticle script adopted for 2.62; the mesh with this matric is consistent, but rotated 180 degrees around Z axis and centered at 0 0 0
-  r = [ [
-      det * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2]),
-    - det * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2]),
-      det * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]),
-      0.0,
-    ], [
-    - det * (m.col[1][0] * m.col[2][2] - m.col[2][0] * m.col[1][2]),
-      det * (m.col[0][0] * m.col[2][2] - m.col[2][0] * m.col[0][2]),
-    - det * (m.col[0][0] * m.col[1][2] - m.col[1][0] * m.col[0][2]),
-      0.0
-    ], [
-      det * (m.col[1][0] * m.col[2][1] - m.col[2][0] * m.col[1][1]),
-    - det * (m.col[0][0] * m.col[2][1] - m.col[2][0] * m.col[0][1]),
-      det * (m.col[0][0] * m.col[1][1] - m.col[1][0] * m.col[0][1]),
-      0.0,
-    ] ]
-  r.append([
-    -(m.col[3][0] * r[0][0] + m.col[3][1] * r[1][0] + m.col[3][2] * r[2][0]),
-    -(m.col[3][0] * r[0][1] + m.col[3][1] * r[1][1] + m.col[3][2] * r[2][1]),
-    -(m.col[3][0] * r[0][2] + m.col[3][1] * r[1][2] + m.col[3][2] * r[2][2]),
-    1.0,
-    ])
-  return r
-    
-def quaternion_normalize(q):
-  l = math.sqrt(q.col[0] * q.col[0] + q.col[1] * q.col[1] + q.col[2] * q.col[2] + q.col[3] * q.col[3])
-  return q.col[0] / l, q.col[1] / l, q.col[2] / l, q.col[3] / l
-  
+  def vector_normalize(v):
+    l = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    try:
+      return v[0] / l, v[1] / l, v[2] / l
+    except:
+      return 1, 0, 0
+
+  def matrix2quaternion(m):
+    s = math.sqrt(abs(m.col[0][0] + m.col[1][1] + m.col[2][2] + m.col[3][3]))
+    if s == 0.0:
+      x = abs(m.col[2][1] - m.col[1][2])
+      y = abs(m.col[0][2] - m.col[2][0])
+      z = abs(m.col[1][0] - m.col[0][1])
+      if   (x >= y) and (x >= z): return 1.0, 0.0, 0.0, 0.0
+      elif (y >= x) and (y >= z): return 0.0, 1.0, 0.0, 0.0
+      else:                       return 0.0, 0.0, 1.0, 0.0
+    return quaternion_normalize([
+      -(m.col[2][1] - m.col[1][2]) / (2.0 * s),
+      -(m.col[0][2] - m.col[2][0]) / (2.0 * s),
+      -(m.col[1][0] - m.col[0][1]) / (2.0 * s),
+      0.5 * s,
+      ])
+
+  def matrix_invert(m):
+    det = (m.col[0][0] * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2])
+         - m.col[1][0] * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2])
+         + m.col[2][0] * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]))
+    if det == 0.0: return None
+    det = 1.0 / det
+  # transposed matrix
+  #  r = [ [
+  #      det * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2]),
+  #    - det * (m.col[1][0] * m.col[2][2] - m.col[2][0] * m.col[1][2]),
+  #      det * (m.col[1][0] * m.col[2][1] - m.col[2][0] * m.col[1][1]),
+  #    ], [
+  #    - det * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2]),
+  #     det * (m.col[0][0] * m.col[2][2] - m.col[2][0] * m.col[0][2]),
+  #   - det * (m.col[0][0] * m.col[2][1] - m.col[2][0] * m.col[0][1]),
+  #    ], [
+  #      det * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]),
+  #    - det * (m.col[0][0] * m.col[1][2] - m.col[1][0] * m.col[0][2]),
+  #      det * (m.col[0][0] * m.col[1][1] - m.col[1][0] * m.col[0][1]),
+  #    ], [
+  #      0.0,
+  #      0.0,
+  #      0.0,
+  #    ] ]
+  # original matrix from 2.61 compaticle script adopted for 2.62; the mesh with this matric is consistent, but rotated 180 degrees around Z axis and centered at 0 0 0
+    r = [ [
+        det * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2]),
+      - det * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2]),
+        det * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]),
+        0.0,
+      ], [
+      - det * (m.col[1][0] * m.col[2][2] - m.col[2][0] * m.col[1][2]),
+        det * (m.col[0][0] * m.col[2][2] - m.col[2][0] * m.col[0][2]),
+      - det * (m.col[0][0] * m.col[1][2] - m.col[1][0] * m.col[0][2]),
+        0.0
+      ], [
+        det * (m.col[1][0] * m.col[2][1] - m.col[2][0] * m.col[1][1]),
+      - det * (m.col[0][0] * m.col[2][1] - m.col[2][0] * m.col[0][1]),
+        det * (m.col[0][0] * m.col[1][1] - m.col[1][0] * m.col[0][1]),
+        0.0,
+      ] ]
+    r.append([
+      -(m.col[3][0] * r[0][0] + m.col[3][1] * r[1][0] + m.col[3][2] * r[2][0]),
+      -(m.col[3][0] * r[0][1] + m.col[3][1] * r[1][1] + m.col[3][2] * r[2][1]),
+      -(m.col[3][0] * r[0][2] + m.col[3][1] * r[1][2] + m.col[3][2] * r[2][2]),
+      1.0,
+      ])
+    return r
+
+  def quaternion_normalize(q):
+    l = math.sqrt(q.col[0] * q.col[0] + q.col[1] * q.col[1] + q.col[2] * q.col[2] + q.col[3] * q.col[3])
+    return q.col[0] / l, q.col[1] / l, q.col[2] / l, q.col[3] / l
+
+  def getminmax(listofpoints):
+    if len(listofpoints[0]) == 0: return ([0,0,0],[0,0,0])
+    min = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
+    max = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
+    if len(listofpoints[0])>1:
+      for i in range(1, len(listofpoints[0])):
+        if listofpoints[i][0]>max[0]: max[0]=listofpoints[i][0]
+        if listofpoints[i][1]>max[1]: max[1]=listofpoints[i][1]
+        if listofpoints[i][2]>max[2]: max[2]=listofpoints[i][2]
+        if listofpoints[i][0]<min[0]: min[0]=listofpoints[i][0]
+        if listofpoints[i][1]<min[1]: min[1]=listofpoints[i][1]
+        if listofpoints[i][2]<min[2]: min[2]=listofpoints[i][2]
+    return (min, max)
+
 
 #shader material
-class Material:
+class Material(object):
   name = ""		#string
   def __init__(self, textureFileName):
     self.name = textureFileName
@@ -150,7 +166,7 @@ class Material:
     return self.name;
 
 #the 'Model' class, contains all submeshes
-class Mesh:
+class Mesh(object):
   name = "" 		#string
   submeshes = []	#array of SubMesh
   next_submesh_id = 0	#int
@@ -176,7 +192,7 @@ class Mesh:
 
 
 #submeshes reference a parent mesh
-class SubMesh:
+class SubMesh(object):
   def __init__(self, mesh, material):
     self.material   = material
     self.vertices   = []
@@ -257,7 +273,7 @@ class SubMesh:
     return buf
     
 #vertex class contains and outputs 'verts' but also generates 'weights' data
-class Vertex:
+class Vertex(object):
   def __init__(self, submesh, loc, normal):
     self.loc    = loc
     self.normal = normal
@@ -294,7 +310,7 @@ class Vertex:
     return buf    
     
 #texture coordinate map 
-class Map:
+class Map(object):
   def __init__(self, u, v):
     self.u = u
     self.v = v
@@ -306,27 +322,27 @@ class Map:
 
 #NOTE: uses global 'scale' to scale the size of model verticies
 #generated and stored in Vertex class
-class Weight:
+class Weight(object):
   def __init__(self, bone, weight, vertex, weightindx, x, y, z):
     self.bone = bone
     self.weight = weight
     self.vertex = vertex
     self.indx = weightindx
-    invbonematrix = matrix_invert(self.bone.matrix)
-    self.x, self.y, self.z = point_by_matrix ((x, y, z), invbonematrix)
+    invbonematrix = MD5Math.matrix_invert(self.bone.matrix)
+    self.x, self.y, self.z = MD5Math.point_by_matrix ((x, y, z), invbonematrix)
     
   def to_md5mesh(self):
     buf = "%i %f ( %f %f %f )" % (self.bone.id, self.weight, self.x*scale, self.y*scale, self.z*scale)
     return buf
 
 #used by SubMesh class
-class Influence:
+class Influence(object):
   def __init__(self, bone, weight):
     self.bone   = bone
     self.weight = weight
     
 #outputs the 'tris' data
-class Face:
+class Face(object):
   def __init__(self, submesh, vertex1, vertex2, vertex3):
     self.vertex1 = vertex1
     self.vertex2 = vertex2
@@ -343,7 +359,7 @@ class Face:
     return buf
 
 #holds bone skeleton data and outputs header above the Mesh class
-class Skeleton:
+class Skeleton(object):
   def __init__(self, MD5Version = 10, commandline = ""):
     self.bones = []
     self.MD5Version = MD5Version
@@ -365,14 +381,13 @@ class Skeleton:
 BONES = {}
 
 #held by Skeleton, generates individual 'joint' data
-class Bone:
+class Bone(object):
   def __init__(self, skeleton, parent, name, mat, theboneobj):
     self.parent = parent #Bone
     self.name   = name   #string
     self.children = []   #list of Bone objects
     self.theboneobj = theboneobj #Blender.Armature.Bone
-    # HACK: this flags if the bone is animated in the one animation that we export
-    self.is_animated = 0  # = 1, if there is an ipo that animates this bone
+    self.is_animated = 0  # is there an ipo that animates this bone
 
     self.matrix = mat
     if parent:
@@ -420,7 +435,7 @@ class Bone:
     return buf
 
 
-class MD5Animation:
+class MD5Animation(object):
   def __init__(self, md5skel, MD5Version = 10, commandline = ""):
     self.framedata    = [] # framedata[boneid] holds the data for each frame
     self.bounds       = []
@@ -512,354 +527,355 @@ class MD5Animation:
     return
     
 
-def getminmax(listofpoints):
-  if len(listofpoints[0]) == 0: return ([0,0,0],[0,0,0])
-  min = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
-  max = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
-  if len(listofpoints[0])>1:
-    for i in range(1, len(listofpoints[0])):
-      if listofpoints[i][0]>max[0]: max[0]=listofpoints[i][0]
-      if listofpoints[i][1]>max[1]: max[1]=listofpoints[i][1]
-      if listofpoints[i][2]>max[2]: max[2]=listofpoints[i][2]
-      if listofpoints[i][0]<min[0]: min[0]=listofpoints[i][0]
-      if listofpoints[i][1]<min[1]: min[1]=listofpoints[i][1]
-      if listofpoints[i][2]<min[2]: min[2]=listofpoints[i][2]
-  return (min, max)
 
-def generateboundingbox(objects, md5animation, framerange):
-  scene = bpy.context.scene #Blender.Scene.getCurrent()
-  context = scene.render #scene.getRenderingContext()
-  for i in range(framerange[0], framerange[1]+1):
-    corners = []
-    #context.currentFrame(i)
-    #scene.makeCurrent()
-    scene.frame_set( i ) 
-    
-    for obj in objects:
-      data = obj.data #obj.getData()
-      #if (type(data) is Blender.Types.NMeshType) and data.faces:
-      if obj.type == 'MESH' and data.polygons:
-        #obj.makeDisplayList()
-        #(lx, ly, lz) = obj.getLocation()
-        (lx, ly, lz ) = obj.location
-        #bbox = obj.getBoundBox()
-        bbox = obj.bound_box
-# transposed matrix
-#        matrix = [[1.0,  0.0,  0.0,  0.0],
-#          [0.0,  1.0,  1.0,  0.0],
-#          [0.0,  0.0,  1.0,  0.0],
-#          [0.0,  0.0,  0.0,  1.0],
-#          ]
-# original matrix from the 2.61 compatible script
-        matrix = [[1.0,  0.0, 0.0, 0.0],
-          [0.0,  1.0, 0.0, 0.0],
-          [0.0,  1.0, 1.0, 0.0],
-          [0.0,  0.0, 0.0, 1.0],
-          ]
-        for v in bbox:
-          corners.append(point_by_matrix (v, matrix))
-    (min, max) = getminmax(corners)
-    md5animation.bounds.append((min[0]*scale, min[1]*scale, min[2]*scale, max[0]*scale, max[1]*scale, max[2]*scale))
+  def generateboundingbox(objects, md5animation, framerange):
+    scene = bpy.context.scene #Blender.Scene.getCurrent()
+    context = scene.render #scene.getRenderingContext()
+    for i in range(framerange[0], framerange[1]+1):
+      corners = []
+      #context.currentFrame(i)
+      #scene.makeCurrent()
+      scene.frame_set( i ) 
+
+      for obj in objects:
+        data = obj.data #obj.getData()
+        #if (type(data) is Blender.Types.NMeshType) and data.faces:
+        if obj.type == 'MESH' and data.polygons:
+          #obj.makeDisplayList()
+          #(lx, ly, lz) = obj.getLocation()
+          (lx, ly, lz ) = obj.location
+          #bbox = obj.getBoundBox()
+          bbox = obj.bound_box
+  # transposed matrix
+  #        matrix = [[1.0,  0.0,  0.0,  0.0],
+  #          [0.0,  1.0,  1.0,  0.0],
+  #          [0.0,  0.0,  1.0,  0.0],
+  #          [0.0,  0.0,  0.0,  1.0],
+  #          ]
+  # original matrix from the 2.61 compatible script
+          matrix = [[1.0,  0.0, 0.0, 0.0],
+            [0.0,  1.0, 0.0, 0.0],
+            [0.0,  1.0, 1.0, 0.0],
+            [0.0,  0.0, 0.0, 1.0],
+            ]
+          for v in bbox:
+            corners.append(MD5Math.point_by_matrix (v, matrix))
+      (min, max) = MD5Math.getminmax(corners)
+      md5animation.bounds.append((min[0]*scale, min[1]*scale, min[2]*scale, max[0]*scale, max[1]*scale, max[2]*scale))
   
     
 #exporter settings
-class md5Settings:
-  def __init__(self,
-               savepath,
-               exportMode,
-               scale=1.0
-#               scale,
-               ):
+class MD5Settings(object):
+  def __init__(self, savepath, exportMode, scale=1.0):
     self.savepath = savepath
     self.exportMode = exportMode
     self.scale = scale
 
-#scale = 1.0
+class MD5Save(object):
+  def __init__(self, settings):
+    self.settings = settings
+    self.thearmature = 0  #null to start, will assign in next section || TODO check if limiting for multiple meshes
+    self.skeleton = 0
+    self.meshes = []
+    self.ANIMATIONS = 0
+    self.rangestart = 0
+    self.rangeend = 0
 
-#SERIALIZE FUNCTION
-def save_md5(settings):
-  print("Exporting selected objects...")
-  bpy.ops.object.mode_set(mode='OBJECT')
-  
-  scale = settings.scale
-  
-  
-  
-  thearmature = 0  #null to start, will assign in next section 
-  
-  #first pass on selected data, pull one skeleton
-  skeleton = Skeleton(10, "Exported from Blender by io_export_md5.py by Paul Zirkle")
-  bpy.context.scene.frame_set(bpy.context.scene.frame_start)
-  for obj in bpy.context.selected_objects:
-    if obj.type == 'ARMATURE':
-      #skeleton.name = obj.name
-      thearmature = obj
-      w_matrix = obj.matrix_world
-      
-      #define recursive bone parsing function
-      def treat_bone(b, parent = None):
-        if (parent and not b.parent.name==parent.name):
-          return #only catch direct children
-        
-        mat =  mathutils.Matrix(w_matrix) * mathutils.Matrix(b.matrix_local)  #reversed order of multiplication from 2.4 to 2.5!!! ARRRGGG
-        
-        bone = Bone(skeleton, parent, b.name, mat, b)
-        
-        if( b.children ):
-          for child in b.children: treat_bone(child, bone)
-          
-      for b in thearmature.data.bones:
-        if( not b.parent ): #only treat root bones'
-          print( "root bone: " + b.name )
-          treat_bone(b)
     
-      break #only pull one skeleton out
-  
-  #second pass on selected data, pull meshes
-  meshes = []
-  for obj in bpy.context.selected_objects:
-    if ((obj.type == 'MESH') and ( len(obj.data.vertices.values()) > 0 )):
-      #for each non-empty mesh
-      mesh = Mesh(obj.name)
-      obj.data.update(calc_tessface=True)
-      print( "Processing mesh: "+ obj.name )
-      meshes.append(mesh)
+  def armature(self):
 
-      numTris = 0
-      numWeights = 0
-      for f in obj.data.polygons:
-        numTris += len(f.vertices) - 2
-      for v in obj.data.vertices:
-        numWeights += len( v.groups )
-        
-      w_matrix = obj.matrix_world
-      verts = obj.data.vertices
+    #first pass on selected data, pull one skeleton
+    self.skeleton = Skeleton(10, "Exported from Blender by io_export_md5.py by Paul Zirkle")
+    bpy.context.scene.frame_set(bpy.context.scene.frame_start)
+    for obj in bpy.context.selected_objects:
+      if obj.type == 'ARMATURE':
+        #skeleton.name = obj.name
+        self.thearmature = obj
+        w_matrix = obj.matrix_world
+
+        #define recursive bone parsing function
+        def treat_bone(b, parent = None):
+          if (parent and not b.parent.name==parent.name):
+            return #only catch direct children
+
+          mat =  mathutils.Matrix(w_matrix) * mathutils.Matrix(b.matrix_local)  #reversed order of multiplication from 2.4 to 2.5
+
+          bone = Bone(self.skeleton, parent, b.name, mat, b)
+
+          if( b.children ):
+            for child in b.children: treat_bone(child, bone)
+
+        for b in self.thearmature.data.bones:
+          if( not b.parent ): #only treat root bones'
+            print( "root bone: " + b.name )
+            treat_bone(b)
+
+        break #only pull one skeleton out
       
-      uv_textures = obj.data.tessface_uv_textures
-      faces = []
-      for f in obj.data.polygons:
-        faces.append( f )
-      
-      createVertexA = 0
-      createVertexB = 0
-      createVertexC = 0
-        
-      while faces:
-        material_index = faces[0].material_index
-        material = Material(obj.data.materials[0].name ) #call the shader name by the material's name
-        
-        submesh = SubMesh(mesh, material)
-        vertices = {}
-        for face in faces[:]:
-          # der_ton: i added this check to make sure a face has at least 3 vertices.
-          # (pdz) also checks for and removes duplicate verts
-          if len(face.vertices) < 3: # throw away faces that have less than 3 vertices
-            faces.remove(face)
-          elif face.vertices[0] == face.vertices[1]:  #throw away degenerate triangles
-            faces.remove(face)
-          elif face.vertices[0] == face.vertices[2]:
-            faces.remove(face)
-          elif face.vertices[1] == face.vertices[2]:
-            faces.remove(face)
-          elif face.material_index == material_index:
-            #all faces in each sub-mesh must have the same material applied
-            faces.remove(face)
-            
-            if not face.use_smooth :
-              p1 = verts[ face.vertices[0] ].co
-              p2 = verts[ face.vertices[1] ].co
-              p3 = verts[ face.vertices[2] ].co
-              normal = vector_normalize(vector_by_matrix(vector_crossproduct( \
-              	[p3[0] - p2[0], p3[1] - p2[1], p3[2] - p2[2]], \
-              	[p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]], \
-              	), w_matrix))
-            
-            #for each vertex in this face, add unique to vertices dictionary
-            face_vertices = []
-            for i in range(len(face.vertices)):
-              vertex = False
-              if face.vertices[i] in vertices: 
-                vertex = vertices[  face.vertices[i] ] #type of Vertex
-              if not vertex: #found unique vertex, add to list
-                coord  = point_by_matrix( verts[face.vertices[i]].co, w_matrix ) #TODO: fix possible bug here
-                if face.use_smooth: normal = vector_normalize(vector_by_matrix( verts[face.vertices[i]].normal, w_matrix ))
-                vertex  = vertices[face.vertices[i]] = Vertex(submesh, coord, normal) 
-                createVertexA += 1
-                
-                influences = []
-                for j in range(len( obj.data.vertices[ face.vertices[i] ].groups )):
-                  inf = [obj.vertex_groups[ obj.data.vertices[ face.vertices[i] ].groups[j].group ].name, obj.data.vertices[ face.vertices[i] ].groups[j].weight]
-                  influences.append( inf )
-                
-                if not influences:
-                  print( "There is a vertex without attachment to a bone in mesh: " + mesh.name )
-                sum = 0.0
-                for bone_name, weight in influences: sum += weight
-                
-                for bone_name, weight in influences:
-                  if sum != 0:
-                    try:
-                        vertex.influences.append(Influence(BONES[bone_name], weight / sum))
-                    except:
-                        continue
-                  else: # we have a vertex that is probably not skinned. export anyway
-                    try:
-                        vertex.influences.append(Influence(BONES[bone_name], weight))
-                    except:
-                        continue
-                
-                #print( "vert " + str( face.vertices[i] ) + " has " + str(len( vertex.influences ) ) + " influences ")
-                        
-              elif not face.use_smooth:
-                # We cannot share vertex for non-smooth faces, since Cal3D does not
-                # support vertex sharing for 2 vertices with different normals.
-                # => we must clone the vertex.
-                
-                old_vertex = vertex
-                vertex = Vertex(submesh, vertex.loc, normal)
-                createVertexB += 1
-                vertex.cloned_from = old_vertex
-                vertex.influences = old_vertex.influences
-                old_vertex.clones.append(vertex)
-              
-              hasFaceUV = len(uv_textures) > 0 #borrowed from export_obj.py
-              
-              if hasFaceUV: 
-              	uv = [uv_textures.active.data[face.index].uv[i][0], uv_textures.active.data[face.index].uv[i][1]]
-              	uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-              	if not vertex.maps: vertex.maps.append(Map(*uv))
-              	elif (vertex.maps[0].u != uv[0]) or (vertex.maps[0].v != uv[1]):
-                  # This vertex can be shared for Blender, but not for MD5
-                  # MD5 does not support vertex sharing for 2 vertices with
-                  # different UV texture coodinates.
+  def mesh(self):
+    #second pass on selected data, pull meshes
+    
+    for obj in bpy.context.selected_objects:
+      if ((obj.type == 'MESH') and ( len(obj.data.vertices.values()) > 0 )):
+        #for each non-empty mesh
+        mesh = Mesh(obj.name)
+        obj.data.update(calc_tessface=True)
+        print( "Processing mesh: "+ obj.name )
+        self.meshes.append(mesh)
+
+        numTris = 0
+        numWeights = 0
+        for f in obj.data.polygons:
+          numTris += len(f.vertices) - 2
+        for v in obj.data.vertices:
+          numWeights += len( v.groups )
+
+        w_matrix = obj.matrix_world
+        verts = obj.data.vertices
+
+        uv_textures = obj.data.tessface_uv_textures
+        faces = []
+        for f in obj.data.polygons:
+          faces.append( f )
+
+        createVertexA = 0
+        createVertexB = 0
+        createVertexC = 0
+
+        while faces:
+          material_index = faces[0].material_index
+          material = Material(obj.data.materials[0].name ) #call the shader name by the material's name
+
+          submesh = SubMesh(mesh, material)
+          vertices = {}
+          for face in faces[:]:
+            # der_ton: i added this check to make sure a face has at least 3 vertices.
+            # (pdz) also checks for and removes duplicate verts
+            if len(face.vertices) < 3: # throw away faces that have less than 3 vertices
+              faces.remove(face)
+            elif face.vertices[0] == face.vertices[1]:  #throw away degenerate triangles
+              faces.remove(face)
+            elif face.vertices[0] == face.vertices[2]:
+              faces.remove(face)
+            elif face.vertices[1] == face.vertices[2]:
+              faces.remove(face)
+            elif face.material_index == material_index:
+              #all faces in each sub-mesh must have the same material applied
+              faces.remove(face)
+
+              if not face.use_smooth :
+                p1 = verts[ face.vertices[0] ].co
+                p2 = verts[ face.vertices[1] ].co
+                p3 = verts[ face.vertices[2] ].co
+                normal = MD5Math.vector_normalize(MD5Math.vector_by_matrix(MD5Math.vector_crossproduct( \
+                  [p3[0] - p2[0], p3[1] - p2[1], p3[2] - p2[2]], \
+                  [p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]], \
+                  ), w_matrix))
+
+              #for each vertex in this face, add unique to vertices dictionary
+              face_vertices = []
+              for i in range(len(face.vertices)):
+                vertex = False
+                if face.vertices[i] in vertices: 
+                  vertex = vertices[  face.vertices[i] ] #type of Vertex
+                if not vertex: #found unique vertex, add to list
+                  coord  = MD5Math.point_by_matrix( verts[face.vertices[i]].co, w_matrix ) #TODO: fix possible bug here
+                  if face.use_smooth: normal = MD5Math.vector_normalize(MD5Math.vector_by_matrix( verts[face.vertices[i]].normal, w_matrix ))
+                  vertex  = vertices[face.vertices[i]] = Vertex(submesh, coord, normal) 
+                  createVertexA += 1
+
+                  influences = []
+                  for j in range(len( obj.data.vertices[ face.vertices[i] ].groups )):
+                    inf = [obj.vertex_groups[ obj.data.vertices[ face.vertices[i] ].groups[j].group ].name, obj.data.vertices[ face.vertices[i] ].groups[j].weight]
+                    influences.append( inf )
+
+                  if not influences:
+                    print( "There is a vertex without attachment to a bone in mesh: " + mesh.name )
+                  sum = 0.0
+                  for bone_name, weight in influences: sum += weight
+
+                  for bone_name, weight in influences:
+                    if sum != 0:
+                      try:
+                          vertex.influences.append(Influence(BONES[bone_name], weight / sum))
+                      except:
+                          continue
+                    else: # we have a vertex that is probably not skinned. export anyway
+                      try:
+                          vertex.influences.append(Influence(BONES[bone_name], weight))
+                      except:
+                          continue
+
+                  #print( "vert " + str( face.vertices[i] ) + " has " + str(len( vertex.influences ) ) + " influences ")
+
+                elif not face.use_smooth:
+                  # We cannot share vertex for non-smooth faces, since Cal3D does not
+                  # support vertex sharing for 2 vertices with different normals.
                   # => we must clone the vertex.
 
-                  for clone in vertex.clones:
-                    if (clone.maps[0].u == uv[0]) and (clone.maps[0].v == uv[1]):
-                      vertex = clone
-                      break
-                  else: # Not yet cloned...  (PDZ) note: this ELSE belongs attached to the FOR loop.. python can do that apparently
-                    old_vertex = vertex
-                    vertex = Vertex(submesh, vertex.loc, vertex.normal)
-                    createVertexC += 1
-                    vertex.cloned_from = old_vertex
-                    vertex.influences = old_vertex.influences
-                    vertex.maps.append(Map(*uv))
-                    old_vertex.clones.append(vertex)
+                  old_vertex = vertex
+                  vertex = Vertex(submesh, vertex.loc, normal)
+                  createVertexB += 1
+                  vertex.cloned_from = old_vertex
+                  vertex.influences = old_vertex.influences
+                  old_vertex.clones.append(vertex)
 
-              face_vertices.append(vertex)
-              
-            # Split faces with more than 3 vertices
-            for i in range(1, len(face.vertices) - 1):
-              Face(submesh, face_vertices[0], face_vertices[i], face_vertices[i + 1])
+                hasFaceUV = len(uv_textures) > 0 #borrowed from export_obj.py
+
+                if hasFaceUV: 
+                  uv = [uv_textures.active.data[face.index].uv[i][0], uv_textures.active.data[face.index].uv[i][1]]
+                  uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+                  if not vertex.maps: vertex.maps.append(Map(*uv))
+                  elif (vertex.maps[0].u != uv[0]) or (vertex.maps[0].v != uv[1]):
+                    # This vertex can be shared for Blender, but not for MD5
+                    # MD5 does not support vertex sharing for 2 vertices with
+                    # different UV texture coodinates.
+                    # => we must clone the vertex.
+
+                    for clone in vertex.clones:
+                      if (clone.maps[0].u == uv[0]) and (clone.maps[0].v == uv[1]):
+                        vertex = clone
+                        break
+                    else: # Not yet cloned...  (PDZ) note: this ELSE belongs attached to the FOR loop.. python can do that apparently
+                      old_vertex = vertex
+                      vertex = Vertex(submesh, vertex.loc, vertex.normal)
+                      createVertexC += 1
+                      vertex.cloned_from = old_vertex
+                      vertex.influences = old_vertex.influences
+                      vertex.maps.append(Map(*uv))
+                      old_vertex.clones.append(vertex)
+
+                face_vertices.append(vertex)
+
+              # Split faces with more than 3 vertices
+              for i in range(1, len(face.vertices) - 1):
+                Face(submesh, face_vertices[0], face_vertices[i], face_vertices[i + 1])
+            else:
+              print( "found face with invalid material!!!!" )
+        print( "created verts at A " + str(createVertexA) + ", B " + str( createVertexB ) + ", C " + str( createVertexC ) )
+
+
+  def anim(self):
+
+    # Export animations
+    self.ANIMATIONS = {}
+
+    arm_action = self.thearmature.animation_data.action
+    if arm_action:
+      animation = self.ANIMATIONS[arm_action.name] = MD5Animation(self.skeleton)
+  #    armature.animation_data.action = action
+      bpy.context.scene.update()
+      armature = bpy.context.active_object
+      action = armature.animation_data.action
+  #    framemin, framemax	= bpy.context.active_object.animation_data.Action(fcurves.frame_range)
+      framemin, framemax  = action.frame_range
+      self.rangestart = int(framemin)
+      self.rangeend = int(framemax)
+  #    rangestart = int( bpy.context.scene.frame_start ) # int( arm_action.frame_range[0] )
+  #    rangeend = int( bpy.context.scene.frame_end ) #int( arm_action.frame_range[1] )
+      currenttime = self.rangestart
+      while currenttime <= self.rangeend: 
+        bpy.context.scene.frame_set(currenttime)
+        time = (currenttime - 1.0) / 24.0 #(assuming default 24fps for md5 anim)
+        pose = self.thearmature.pose
+
+        for bonename in self.thearmature.data.bones.keys():
+          posebonemat = mathutils.Matrix(pose.bones[bonename].matrix ) # @ivar poseMatrix: The total transformation of this PoseBone including constraints. -- different from localMatrix
+
+          try:
+            bone  = BONES[bonename] #look up md5bone
+          except:
+            print( "found a posebone animating a bone that is not part of the exported armature: " + bonename )
+            continue
+          if bone.parent: # need parentspace-matrix
+            parentposemat = mathutils.Matrix(pose.bones[bone.parent.name].matrix ) # @ivar poseMatrix: The total transformation of this PoseBone including constraints. -- different from localMatrix
+  #          posebonemat = parentposemat.invert() * posebonemat #reverse order of multiplication!!!
+            parentposemat.invert() # mikshaw
+            posebonemat = parentposemat * posebonemat # mikshaw
           else:
-            print( "found face with invalid material!!!!" )
-      print( "created verts at A " + str(createVertexA) + ", B " + str( createVertexB ) + ", C " + str( createVertexC ) )
-      
-  # Export animations
-  ANIMATIONS = {}
+            posebonemat = self.thearmature.matrix_world * posebonemat  #reverse order of multiplication!!!
+          loc = [posebonemat.col[3][0],
+              posebonemat.col[3][1],
+              posebonemat.col[3][2],
+              ]
+  #        rot = posebonemat.to_quat().normalize()
+          rot = posebonemat.to_quaternion() # changed from to_quat in 2.57 -mikshaw
+          rot.normalize() # mikshaw
+          rot = [rot.w,rot.x,rot.y,rot.z]
 
-  arm_action = thearmature.animation_data.action
-  rangestart = 0
-  rangeend = 0
-  if arm_action:
-    animation = ANIMATIONS[arm_action.name] = MD5Animation(skeleton)
-#    armature.animation_data.action = action
-    bpy.context.scene.update()
-    armature = bpy.context.active_object
-    action = armature.animation_data.action
-#    framemin, framemax	= bpy.context.active_object.animation_data.Action(fcurves.frame_range)
-    framemin, framemax  = action.frame_range
-    rangestart = int(framemin)
-    rangeend = int(framemax)
-#    rangestart = int( bpy.context.scene.frame_start ) # int( arm_action.frame_range[0] )
-#    rangeend = int( bpy.context.scene.frame_end ) #int( arm_action.frame_range[1] )
-    currenttime = rangestart
-    while currenttime <= rangeend: 
-      bpy.context.scene.frame_set(currenttime)
-      time = (currenttime - 1.0) / 24.0 #(assuming default 24fps for md5 anim)
-      pose = thearmature.pose
+          animation.addkeyforbone(bone.id, time, loc, rot)
+        currenttime += 1
 
-      for bonename in thearmature.data.bones.keys():
-        posebonemat = mathutils.Matrix(pose.bones[bonename].matrix ) # @ivar poseMatrix: The total transformation of this PoseBone including constraints. -- different from localMatrix
+  def export_mesh(self):
+    # here begins md5mesh and anim output
+    # this is how it works
+    # first the skeleton is output, using the data that was collected by the above code in this export function
+    # then the mesh data is output (into the same md5mesh file)
 
-        try:
-          bone  = BONES[bonename] #look up md5bone
-        except:
-          print( "found a posebone animating a bone that is not part of the exported armature: " + bonename )
-          continue
-        if bone.parent: # need parentspace-matrix
-          parentposemat = mathutils.Matrix(pose.bones[bone.parent.name].matrix ) # @ivar poseMatrix: The total transformation of this PoseBone including constraints. -- different from localMatrix
-#          posebonemat = parentposemat.invert() * posebonemat #reverse order of multiplication!!!
-          parentposemat.invert() # mikshaw
-          posebonemat = parentposemat * posebonemat # mikshaw
-        else:
-          posebonemat = thearmature.matrix_world * posebonemat  #reverse order of multiplication!!!
-        loc = [posebonemat.col[3][0],
-            posebonemat.col[3][1],
-            posebonemat.col[3][2],
-            ]
-#        rot = posebonemat.to_quat().normalize()
-        rot = posebonemat.to_quaternion() # changed from to_quat in 2.57 -mikshaw
-        rot.normalize() # mikshaw
-        rot = [rot.w,rot.x,rot.y,rot.z]
-        
-        animation.addkeyforbone(bone.id, time, loc, rot)
-      currenttime += 1
-        
-  # here begins md5mesh and anim output
-  # this is how it works
-  # first the skeleton is output, using the data that was collected by the above code in this export function
-  # then the mesh data is output (into the same md5mesh file)
+    if( self.settings.exportMode == "mesh & anim" or self.settings.exportMode == "mesh only" ):
+            md5mesh_filename = self.settings.savepath + ".md5mesh"
 
-  if( settings.exportMode == "mesh & anim" or settings.exportMode == "mesh only" ):
-	  md5mesh_filename = settings.savepath + ".md5mesh"
+            #save all submeshes in the first mesh
+            if len(self.meshes)>1:
+              for mesh in range (1, len(self.meshes)):
+                for submesh in self.meshes[mesh].submeshes:
+                  submesh.bindtomesh(self.meshes[0])
+            if (md5mesh_filename != ""):
+              try:
+                file = open(md5mesh_filename, 'w')
+              except IOError:
+                errmsg = "IOError " #%s: %s" % (errno, strerror)
+              buffer = self.skeleton.to_md5mesh(len(self.meshes[0].submeshes))
+              #for mesh in meshes:
+              buffer = buffer + self.meshes[0].to_md5mesh()
+              file.write(buffer)
+              file.close()
+              print( "saved mesh to " + md5mesh_filename )
+            else:
+              print( "No md5mesh file was generated." )
 
-	  #save all submeshes in the first mesh
-	  if len(meshes)>1:
-	    for mesh in range (1, len(meshes)):
-	      for submesh in meshes[mesh].submeshes:
-	        submesh.bindtomesh(meshes[0])
-	  if (md5mesh_filename != ""):
-	    try:
-	      file = open(md5mesh_filename, 'w')
-	    except IOError:
-	      errmsg = "IOError " #%s: %s" % (errno, strerror)
-	    buffer = skeleton.to_md5mesh(len(meshes[0].submeshes))
-	    #for mesh in meshes:
-	    buffer = buffer + meshes[0].to_md5mesh()
-	    file.write(buffer)
-	    file.close()
-	    print( "saved mesh to " + md5mesh_filename )
-	  else:
-	    print( "No md5mesh file was generated." )
+  def export_anim(self):
+    if( self.settings.exportMode == "mesh & anim" or self.settings.exportMode == "anim only" ):
+            md5anim_filename = self.settings.savepath + ".md5anim"
 
-  if( settings.exportMode == "mesh & anim" or settings.exportMode == "anim only" ):
-	  md5anim_filename = settings.savepath + ".md5anim"
+            #save animation file
+            if len(self.ANIMATIONS)>0:
+              anim = self.ANIMATIONS.popitem()[1] #ANIMATIONS.values()[0]
+              print( str( anim ) )
+              try:
+                file = open(md5anim_filename, 'w')
+              except IOError:
+                errmsg = "IOError " #%s: %s" % (errno, strerror)
+              objects = []
+              for submesh in self.meshes[0].submeshes:
+                if len(submesh.weights) > 0:
+                  obj = None
+                  for sob in bpy.context.selected_objects:
+                      if sob and sob.type == 'MESH' and sob.name == submesh.name:
+                        obj = sob
+                  objects.append (obj)
+              MD5Animation.generateboundingbox(objects, anim, [self.rangestart, self.rangeend])
+              buffer = anim.to_md5anim()
+              file.write(buffer)
+              file.close()
+              print( "saved anim to " + md5anim_filename )
+            else:
+              print( "No md5anim file was generated." )
 
-	  #save animation file
-	  if len(ANIMATIONS)>0:
-	    anim = ANIMATIONS.popitem()[1] #ANIMATIONS.values()[0]
-	    print( str( anim ) )
-	    try:
-	      file = open(md5anim_filename, 'w')
-	    except IOError:
-	      errmsg = "IOError " #%s: %s" % (errno, strerror)
-	    objects = []
-	    for submesh in meshes[0].submeshes:
-	      if len(submesh.weights) > 0:
-	        obj = None
-	        for sob in bpy.context.selected_objects:
-	            if sob and sob.type == 'MESH' and sob.name == submesh.name:
-	              obj = sob
-	        objects.append (obj)
-	    generateboundingbox(objects, anim, [rangestart, rangeend])
-	    buffer = anim.to_md5anim()
-	    file.write(buffer)
-	    file.close()
-	    print( "saved anim to " + md5anim_filename )
-	  else:
-	    print( "No md5anim file was generated." )
+  #SERIALIZE FUNCTION
+  def save_md5(self):
+    print("Exporting selected objects...")
+    bpy.ops.object.mode_set(mode='OBJECT')
+
+    scale = self.settings.scale
+
+    self.armature()
+    self.mesh()
+    self.anim()
+    self.export_mesh()
+    self.export_anim()
+    
+              
   
 ##########
 #export class registration and interface
@@ -900,10 +916,11 @@ class ExportMD5(bpy.types.Operator):
   def execute(self, context):
     global scale
     scale = self.md5scale
-    settings = md5Settings(savepath = self.properties.filepath,
+    settings = MD5Settings(savepath = self.properties.filepath,
                            exportMode = self.properties.md5exportList
                            )
-    save_md5(settings)
+    serializer = MD5Save(settings)
+    serializer.save_md5()
     return {'FINISHED'}
 
   def invoke(self, context, event):
@@ -913,6 +930,82 @@ class ExportMD5(bpy.types.Operator):
         WindowManager.fileselect_add(self)
         return {"RUNNING_MODAL"}  
 
+class io_export_md5(object):
+  def __init__(self):
+    import getopt
+    output_dir = os.getcwd()
+    global scale
+    scale = 1.00
+    mesh_name = ""
+    accepted_arguments = ["output-dir=", "scale=", "mesh=", "help"]
+
+    def usage():
+      print('Usage: blender file.blend --background --python io_export_md5.py -- --arg1 val1 --arg2 val2')
+      print("Available arguments")
+      for argument in accepted_arguments:
+        print("\t--"+argument)
+
+    dashes_at = 0
+    i = 0
+    for arg in sys.argv:
+      if arg == "--":
+        dashes_at = i+1
+      i = i+1
+    if len(sys.argv) == 1:
+      register()
+      exit()
+    else:
+      if dashes_at == 0:
+        usage()
+
+    try:
+      opts, args  = getopt.getopt(sys.argv[dashes_at:], "", accepted_arguments)
+    except getopt.GetoptError as err:
+      print_executed_string()
+      print(str(err))
+      usage()
+      sys.exit(2)
+
+    for opt, arg in opts:
+      if opt == '--output-dir':
+        output_dir = arg
+        if os.access(output_dir, os.W_OK) == False:
+          print_executed_string()
+          print('Cannot write to folder: '+output_dir)
+          sys.exit(2)
+      if opt == '--scale':
+        try:
+          scale = float(arg)
+        except ValueError:
+          print_executed_string()
+          print("--scale expected float, received: "+arg)
+          sys.exit(2)
+      if opt == '--mesh':
+        mesh_name = arg
+
+      if opt == '--help':
+        usage()
+        sys.exit(0)
+
+    objList = [object for object in bpy.context.scene.objects if object.type == 'MESH']
+    export_count = 0
+    for ob in objList:
+      if ob.name == mesh_name or not mesh_name:
+        print(ob.name)
+        ob.select = True
+        if ob.type == "MESH":
+          serializer = MD5Save(MD5Settings(savepath=output_dir+"/"+ob.name, exportMode="mesh & anim"))
+          serializer.save_md5()
+          ob.select = False
+          export_count = export_count + 1
+
+    if mesh_name and export_count == 0:
+      print("No such mesh: "+mesh_name)
+      sys.exit(2)
+    else:
+      print("Exported "+str(export_count)+" mesh(es).")
+      sys.exit(0)
+      
 def menu_func(self, context):
   default_path = os.path.splitext(bpy.data.filepath)[0]
   self.layout.operator(ExportMD5.bl_idname, text="idTech 4 MD5 (.md5mesh .md5anim)", icon='BLENDER').filepath = default_path
@@ -929,76 +1022,4 @@ def print_executed_string():
   print("Executed string: "+" ".join(sys.argv))
 
 if __name__ == "__main__":
-      
-  import getopt
-  output_dir = os.getcwd()
-  global scale
-  scale = 1.00
-  mesh_name = ""
-  accepted_arguments = ["output-dir=", "scale=", "mesh=", "help"]
-
-  def usage():
-    print('Usage: blender file.blend --background --python io_export_md5.py -- --arg1 val1 --arg2 val2')
-    print("Available arguments")
-    for argument in accepted_arguments:
-      print("\t--"+argument)
-
-  dashes_at = 0
-  i = 0
-  for arg in sys.argv:
-    if arg == "--":
-      dashes_at = i+1
-    i = i+1
-  if len(sys.argv) == 1:
-    register()
-    exit()
-  else:
-    if dashes_at == 0:
-      usage()
-
-  try:
-    opts, args  = getopt.getopt(sys.argv[dashes_at:], "", accepted_arguments)
-  except getopt.GetoptError as err:
-    print_executed_string()
-    print(str(err))
-    usage()
-    sys.exit(2)
-    
-  for opt, arg in opts:
-    if opt == '--output-dir':
-      output_dir = arg
-      if os.access(output_dir, os.W_OK) == False:
-        print_executed_string()
-        print('Cannot write to folder: '+output_dir)
-        sys.exit(2)
-    if opt == '--scale':
-      try:
-        scale = float(arg)
-      except ValueError:
-        print_executed_string()
-        print("--scale expected float, received: "+arg)
-        sys.exit(2)
-    if opt == '--mesh':
-      mesh_name = arg
-      
-    if opt == '--help':
-      usage()
-      sys.exit(0)
-        
-  objList = [object for object in bpy.context.scene.objects if object.type == 'MESH']
-  export_count = 0
-  for ob in objList:
-    if ob.name == mesh_name or not mesh_name:
-      print(ob.name)
-      ob.select = True
-      if ob.type == "MESH":
-        save_md5(md5Settings(savepath=output_dir+"/"+ob.name, exportMode="mesh & anim"))
-        ob.select = False
-        export_count = export_count + 1
-        
-  if mesh_name and export_count == 0:
-    print("No such mesh: "+mesh_name)
-    sys.exit(2)
-  else:
-    print("Exported "+str(export_count)+" mesh(es).")
-    sys.exit(0)
+  io_export_md5()
