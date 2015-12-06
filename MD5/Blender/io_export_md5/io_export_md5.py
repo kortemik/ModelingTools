@@ -378,8 +378,6 @@ class Skeleton(object):
     buf = buf + "}\n\n"
     return buf
 
-BONES = {}
-
 #held by Skeleton, generates individual 'joint' data
 class Bone(object):
   def __init__(self, skeleton, parent, name, mat, theboneobj):
@@ -397,9 +395,6 @@ class Bone(object):
     self.id = skeleton.next_bone_id
     skeleton.next_bone_id += 1
     skeleton.bones.append(self)
-    
-    BONES[name] = self
-
 
   def to_md5mesh(self):
     global scale
@@ -580,6 +575,7 @@ class MD5Save(object):
     self.ANIMATIONS = 0
     self.rangestart = 0
     self.rangeend = 0
+    self.BONES = {}
 
     
   def armature(self):
@@ -601,6 +597,8 @@ class MD5Save(object):
           mat =  mathutils.Matrix(w_matrix) * mathutils.Matrix(b.matrix_local)  #reversed order of multiplication from 2.4 to 2.5
 
           bone = Bone(self.skeleton, parent, b.name, mat, b)
+          # insert into class bone list
+          self.BONES[bone.name] = bone
 
           if( b.children ):
             for child in b.children: treat_bone(child, bone)
@@ -697,12 +695,12 @@ class MD5Save(object):
                   for bone_name, weight in influences:
                     if sum != 0:
                       try:
-                          vertex.influences.append(Influence(BONES[bone_name], weight / sum))
+                          vertex.influences.append(Influence(self.BONES[bone_name], weight / sum))
                       except:
                           continue
                     else: # we have a vertex that is probably not skinned. export anyway
                       try:
-                          vertex.influences.append(Influence(BONES[bone_name], weight))
+                          vertex.influences.append(Influence(self.BONES[bone_name], weight))
                       except:
                           continue
 
@@ -758,6 +756,9 @@ class MD5Save(object):
   def anim(self):
 
     # Export animations
+
+    # perhaps get proper actions via bpy.data.actions?
+    
     self.ANIMATIONS = {}
 
     arm_action = self.thearmature.animation_data.action
@@ -783,7 +784,7 @@ class MD5Save(object):
           posebonemat = mathutils.Matrix(pose.bones[bonename].matrix ) # @ivar poseMatrix: The total transformation of this PoseBone including constraints. -- different from localMatrix
 
           try:
-            bone  = BONES[bonename] #look up md5bone
+            bone  = self.BONES[bonename] #look up md5bone
           except:
             print( "found a posebone animating a bone that is not part of the exported armature: " + bonename )
             continue
