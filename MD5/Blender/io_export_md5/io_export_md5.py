@@ -27,18 +27,46 @@
 #"""
 
 bl_info = { # changed from bl_addon_info in 2.57 -mikshaw
-    "name": "Export idTech4 (.md5)",
-    "author": "Paul Zirkle aka Keless, credit to der_ton, ported to Blender 2.62 by motorsep and tested by kat, special thanks to MCampagnini",
+    "name": "Export MD5 format (.md5mesh, .md5anim)",
+    "author": "OpenTechEngine",
     "version": (1,0,0),
     "blender": (2, 6, 3),
     "api": 31847,
     "location": "File > Export > Skeletal Mesh/Animation Data (.md5mesh/.md5anim)",
-    "description": "Export idTech4 (.md5)",
-    "warning": "",
+    "description": "Exports MD5 format (.md5mesh, .md5anim)",
+    "warning": "See source code for list of authors",
     "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.5/Py/"\
         "Scripts/File_I-O/idTech4_md5",
-    "tracker_url": "http://www.katsbits.com/smforum/index.php?topic=167.0",
+    "tracker_url": "https://github.com/OpenTechEngine/ModelingTools",
     "category": "Import-Export"}
+
+''' credits to community:
+der_ton, original Blender 2.4 version
+Paul Zirkle aka Keless, Blender 2.5 port
+motorsep, Blender 2.62 port
+kat, tests and community site
+mikshaw, Sauerbraten support
+MCampagnini
+ivar
+
+links:
+http://wiki.blender.org/index.php/Extensions:2.5/Py/Scripts/File_I-O/idTech4_md5
+http://www.katsbits.com/smforum/index.php?topic=167.0
+'''
+
+class Typewriter(object):
+  def print_info(message):
+    print ("INFO: "+message)
+
+  def print_warn(message):
+    print ("WARNING: "+message)
+
+  def print_error(message):
+    print ("ERROR: "+message)
+
+  info = print_info
+  warn = print_warn
+  error = print_error
 
 import bpy,struct,math,os,time,sys,mathutils
 from bpy_extras.io_utils import ExportHelper
@@ -235,7 +263,7 @@ class SubMesh(object):
             return
           if (not face.vertex3==face2.vertex1) and (not face.vertex3==face2.vertex2) and (not face.vertex3==face2.vertex3):
             return
-          print('doubleface! %s %s' % (face, face2))
+          Typewriter.warn('doubleface! %s %s' % (face, face2))
           
   def to_md5mesh(self):
     self.generateweights()
@@ -360,7 +388,7 @@ class Face(object):
 
 #holds bone skeleton data and outputs header above the Mesh class
 class Skeleton(object):
-  def __init__(self, MD5Version = 10, commandline = ""):
+  def __init__(self, MD5Version = 10, commandline = "OpenTechEngine MD5 format - https://github.com/OpenTechEngine/ModelingTools"):
     self.bones = []
     self.MD5Version = MD5Version
     self.commandline = commandline
@@ -431,7 +459,7 @@ class Bone(object):
 
 
 class MD5Animation(object):
-  def __init__(self, md5skel, MD5Version = 10, commandline = ""):
+  def __init__(self, md5skel, MD5Version = 10, commandline = "OpenTechEngine MD5 format - https://github.com/OpenTechEngine/ModelingTools"):
     self.framedata    = [] # framedata[boneid] holds the data for each frame
     self.bounds       = []
     self.baseframe    = []
@@ -581,7 +609,7 @@ class MD5Save(object):
   def armature(self):
 
     #first pass on selected data, pull one skeleton
-    self.skeleton = Skeleton(10, "Exported from Blender by io_export_md5.py by Paul Zirkle")
+    self.skeleton = Skeleton(10)
     bpy.context.scene.frame_set(bpy.context.scene.frame_start)
     for obj in bpy.context.selected_objects:
       if obj.type == 'ARMATURE':
@@ -605,7 +633,7 @@ class MD5Save(object):
 
         for b in self.thearmature.data.bones:
           if( not b.parent ): #only treat root bones'
-            print( "root bone: " + b.name )
+            Typewriter.info( "Root bone: " + b.name )
             treat_bone(b)
 
         break #only pull one skeleton out
@@ -618,7 +646,7 @@ class MD5Save(object):
         #for each non-empty mesh
         mesh = Mesh(obj.name)
         obj.data.update(calc_tessface=True)
-        print( "Processing mesh: "+ obj.name )
+        Typewriter.info( "Processing mesh: "+ obj.name )
         self.meshes.append(mesh)
 
         numTris = 0
@@ -688,7 +716,7 @@ class MD5Save(object):
                     influences.append( inf )
 
                   if not influences:
-                    print( "There is a vertex without attachment to a bone in mesh: " + mesh.name )
+                    Typewriter.warn( "There is a vertex without attachment to a bone in mesh: " + mesh.name )
                   sum = 0.0
                   for bone_name, weight in influences: sum += weight
 
@@ -749,8 +777,8 @@ class MD5Save(object):
               for i in range(1, len(face.vertices) - 1):
                 Face(submesh, face_vertices[0], face_vertices[i], face_vertices[i + 1])
             else:
-              print( "found face with invalid material!!!!" )
-        print( "created verts at A " + str(createVertexA) + ", B " + str( createVertexB ) + ", C " + str( createVertexC ) )
+              Typewriter.warn( "found face with invalid material!!!!" )
+        Typewriter.info( "Created verts at A " + str(createVertexA) + ", B " + str( createVertexB ) + ", C " + str( createVertexC ) )
 
 
   def anim(self):
@@ -758,6 +786,7 @@ class MD5Save(object):
     # Export animations
 
     # perhaps get proper actions via bpy.data.actions?
+    # .selected_objects[0].animation_data.action.fcurves[__iter__].sampled_points.data.is_valid
     
     self.ANIMATIONS = {}
 
@@ -786,7 +815,7 @@ class MD5Save(object):
           try:
             bone  = self.BONES[bonename] #look up md5bone
           except:
-            print( "found a posebone animating a bone that is not part of the exported armature: " + bonename )
+            Typewriter.warn( "found a posebone animating a bone that is not part of the exported armature: " + bonename )
             continue
           if bone.parent: # need parentspace-matrix
             parentposemat = mathutils.Matrix(pose.bones[bone.parent.name].matrix ) # @ivar poseMatrix: The total transformation of this PoseBone including constraints. -- different from localMatrix
@@ -831,9 +860,9 @@ class MD5Save(object):
               buffer = buffer + self.meshes[0].to_md5mesh()
               file.write(buffer)
               file.close()
-              print( "saved mesh to " + md5mesh_filename )
+              Typewriter.info( "Saved mesh to " + md5mesh_filename )
             else:
-              print( "No md5mesh file was generated." )
+              Typewriter.error( "No md5mesh file was generated." )
 
   def export_anim(self):
     if( self.settings.exportMode == "mesh & anim" or self.settings.exportMode == "anim only" ):
@@ -842,7 +871,7 @@ class MD5Save(object):
             #save animation file
             if len(self.ANIMATIONS)>0:
               anim = self.ANIMATIONS.popitem()[1] #ANIMATIONS.values()[0]
-              print( str( anim ) )
+              Typewriter.info("Animation "+ str( anim ) )
               try:
                 file = open(md5anim_filename, 'w')
               except IOError:
@@ -859,13 +888,13 @@ class MD5Save(object):
               buffer = anim.to_md5anim()
               file.write(buffer)
               file.close()
-              print( "saved anim to " + md5anim_filename )
+              Typewriter.info( "Saved anim to " + md5anim_filename )
             else:
-              print( "No md5anim file was generated." )
+              Typewriter.error( "No md5anim file was generated." )
 
   #SERIALIZE FUNCTION
   def save_md5(self):
-    print("Exporting selected objects...")
+    Typewriter.info("Exporting selected objects...")
     bpy.ops.object.mode_set(mode='OBJECT')
 
     scale = self.settings.scale
@@ -911,10 +940,24 @@ class ExportMD5(bpy.types.Operator):
   #md5offsetx = FloatProperty(name="Offset X", description="Transition scene along x axis",default=0.0,precision=5)
   #md5offsety = FloatProperty(name="Offset Y", description="Transition scene along y axis",default=0.0,precision=5)
   #md5offsetz = FloatProperty(name="Offset Z", description="Transition scene along z axis",default=0.0,precision=5)
-  
-  
+
+  def setup_typewriter(self):
+    def print_info(message):
+      self.report({'INFO'}, message)
+
+    def print_warn(message):
+      self.report({'WARNING'}, message)
+
+    def print_error(message):
+      self.report({'ERROR'}, message)
+
+    Typewriter.info = print_info
+    Typewriter.warn = print_warn
+    Typewriter.error = print_error
 
   def execute(self, context):
+    # FIXME bug, exports only one, GUI enters only one filepath
+    self.setup_typewriter()
     global scale
     scale = self.md5scale
     settings = MD5Settings(savepath = self.properties.filepath,
@@ -922,6 +965,7 @@ class ExportMD5(bpy.types.Operator):
                            )
     serializer = MD5Save(settings)
     serializer.save_md5()
+
     return {'FINISHED'}
 
   def invoke(self, context, event):
@@ -940,11 +984,14 @@ class io_export_md5(object):
     mesh_name = ""
     accepted_arguments = ["output-dir=", "scale=", "mesh=", "help"]
 
+    def print_executed_string():
+      Typewriter.info("Executed string: "+" ".join(sys.argv))
+
     def usage():
-      print('Usage: blender file.blend --background --python io_export_md5.py -- --arg1 val1 --arg2 val2')
-      print("Available arguments")
+      Typewriter.info('Usage: blender file.blend --background --python io_export_md5.py -- --arg1 val1 --arg2 val2')
+      Typewriter.info("Available arguments")
       for argument in accepted_arguments:
-        print("\t--"+argument)
+        Typewriter.info("\t--"+argument)
 
     dashes_at = 0
     i = 0
@@ -952,18 +999,20 @@ class io_export_md5(object):
       if arg == "--":
         dashes_at = i+1
       i = i+1
+      '''
     if len(sys.argv) == 1:
       register()
       exit()
     else:
-      if dashes_at == 0:
-        usage()
+      '''
+    if dashes_at == 0:
+      usage()
 
     try:
       opts, args  = getopt.getopt(sys.argv[dashes_at:], "", accepted_arguments)
     except getopt.GetoptError as err:
       print_executed_string()
-      print(str(err))
+      Typewriter.error(str(err))
       usage()
       sys.exit(2)
 
@@ -972,14 +1021,14 @@ class io_export_md5(object):
         output_dir = arg
         if os.access(output_dir, os.W_OK) == False:
           print_executed_string()
-          print('Cannot write to folder: '+output_dir)
+          Typewriter.error('Cannot write to folder: '+output_dir)
           sys.exit(2)
       if opt == '--scale':
         try:
           scale = float(arg)
         except ValueError:
           print_executed_string()
-          print("--scale expected float, received: "+arg)
+          Typewriter.error("--scale expected float, received: "+arg)
           sys.exit(2)
       if opt == '--mesh':
         mesh_name = arg
@@ -992,19 +1041,20 @@ class io_export_md5(object):
     export_count = 0
     for ob in objList:
       if ob.name == mesh_name or not mesh_name:
-        print(ob.name)
+        Typewriter.info("Selected object: "+ob.name)
         ob.select = True
         if ob.type == "MESH":
           serializer = MD5Save(MD5Settings(savepath=output_dir+"/"+ob.name, exportMode="mesh & anim"))
           serializer.save_md5()
           ob.select = False
           export_count = export_count + 1
+          Typewriter.info("Exported: "+ob.name+"\n")
 
     if mesh_name and export_count == 0:
-      print("No such mesh: "+mesh_name)
+      Typewriter.error("No such mesh: "+mesh_name)
       sys.exit(2)
     else:
-      print("Exported "+str(export_count)+" mesh(es).")
+      Typewriter.info("Exported "+str(export_count)+" mesh(es).")
       sys.exit(0)
       
 def menu_func(self, context):
@@ -1019,8 +1069,5 @@ def unregister():
   bpy.utils.unregister_module(__name__)  #mikshaw
   bpy.types.INFO_MT_file_export.remove(menu_func)
   
-def print_executed_string():
-  print("Executed string: "+" ".join(sys.argv))
-
 if __name__ == "__main__":
   io_export_md5()
