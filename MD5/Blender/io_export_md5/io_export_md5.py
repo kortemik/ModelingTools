@@ -17,6 +17,15 @@
 # ***** END GPL LICENCE BLOCK *****
 #
 
+import bpy,struct,math,os,time,sys,mathutils
+from bpy_extras.io_utils import ExportHelper
+
+from bpy.props import *
+
+import getopt
+
+import traceback
+
 #"""
 #Name: 'Quake Model 5 (.md5)...'
 #Blender: 263
@@ -33,7 +42,7 @@ bl_info = { # changed from bl_addon_info in 2.57 -mikshaw
     "blender": (2, 6, 3),
     "api": 31847,
     "location": "File > Export > Skeletal Mesh/Animation Data (.md5mesh/.md5anim)",
-    "description": "Exports MD5 format (.md5mesh, .md5anim)",
+    "description": "Exports MD5 Format (.md5mesh, .md5anim)",
     "warning": "See source code for list of authors",
     "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.5/Py/"\
         "Scripts/File_I-O/idTech4_md5",
@@ -67,9 +76,6 @@ class Typewriter(object):
   info = print_info
   warn = print_warn
   error = print_error
-
-import bpy,struct,math,os,time,sys,mathutils
-from bpy_extras.io_utils import ExportHelper
 
 #MATH UTILTY
 
@@ -909,7 +915,6 @@ class MD5Save(object):
   
 ##########
 #export class registration and interface
-from bpy.props import *
 class ExportMD5(bpy.types.Operator):
   '''Export to idTech 4 MD5 (.md5mesh .md5anim)'''
   bl_idname = "export.md5"
@@ -975,13 +980,13 @@ class ExportMD5(bpy.types.Operator):
         WindowManager.fileselect_add(self)
         return {"RUNNING_MODAL"}  
 
-class io_export_md5(object):
-  def __init__(self):
-    import getopt
-    output_dir = os.getcwd()
-    global scale
-    scale = 1.00
-    mesh_name = ""
+class console(object):
+  # blender uses it's own, can't override it so we set it only here
+  def exception_handler(self, type, value, trace):
+    Typewriter.error(''.join(traceback.format_tb(trace)))
+    Typewriter.error(type.__name__+": "+str(value))
+  
+  def get_parameters(self):
     accepted_arguments = ["output-dir=", "scale=", "mesh=", "help"]
 
     def print_executed_string():
@@ -993,21 +998,17 @@ class io_export_md5(object):
       for argument in accepted_arguments:
         Typewriter.info("\t--"+argument)
 
+    # check if '--' entered, arguments after that are for us
     dashes_at = 0
     i = 0
     for arg in sys.argv:
       if arg == "--":
         dashes_at = i+1
       i = i+1
-      '''
-    if len(sys.argv) == 1:
-      register()
-      exit()
-    else:
-      '''
     if dashes_at == 0:
       usage()
 
+    # if no valid arguments entered, print usage
     try:
       opts, args  = getopt.getopt(sys.argv[dashes_at:], "", accepted_arguments)
     except getopt.GetoptError as err:
@@ -1018,56 +1019,76 @@ class io_export_md5(object):
 
     for opt, arg in opts:
       if opt == '--output-dir':
-        output_dir = arg
-        if os.access(output_dir, os.W_OK) == False:
+        self.output_dir = arg
+        if os.access(self.output_dir, os.W_OK) == False:
           print_executed_string()
-          Typewriter.error('Cannot write to folder: '+output_dir)
+          Typewriter.error('Cannot write to folder: '+self.output_dir)
           sys.exit(2)
       if opt == '--scale':
         try:
-          scale = float(arg)
+          self.scale = float(arg)
         except ValueError:
           print_executed_string()
           Typewriter.error("--scale expected float, received: "+arg)
           sys.exit(2)
       if opt == '--mesh':
-        mesh_name = arg
+        self.mesh_name = arg
 
       if opt == '--help':
         usage()
         sys.exit(0)
 
+  def export(self):
     objList = [object for object in bpy.context.scene.objects if object.type == 'MESH']
     export_count = 0
     for ob in objList:
-      if ob.name == mesh_name or not mesh_name:
+      if ob.name == self.mesh_name or not self.mesh_name:
         Typewriter.info("Selected object: "+ob.name)
         ob.select = True
         if ob.type == "MESH":
-          serializer = MD5Save(MD5Settings(savepath=output_dir+"/"+ob.name, exportMode="mesh & anim"))
+          serializer = MD5Save(MD5Settings(savepath=self.output_dir+"/"+ob.name, exportMode="mesh & anim"))
           serializer.save_md5()
           ob.select = False
           export_count = export_count + 1
           Typewriter.info("Exported: "+ob.name+"\n")
 
-    if mesh_name and export_count == 0:
-      Typewriter.error("No such mesh: "+mesh_name)
+    if self.mesh_name and export_count == 0:
+      Typewriter.error("No such mesh: "+self.mesh_name)
       sys.exit(2)
     else:
       Typewriter.info("Exported "+str(export_count)+" mesh(es).")
       sys.exit(0)
-      
+
+  def __init__(self):
+    self.output_dir = os.getcwd()
+    self.scale = 1.00
+    self.mesh_name = ''
+
+    sys.excepthook = self.exception_handler
+    self.get_parameters()
+
+    # global scale parameter
+    global scale
+    scale = self.scale
+    
+    self.export()
+
+
+# blender gui module function
 def menu_func(self, context):
   default_path = os.path.splitext(bpy.data.filepath)[0]
   self.layout.operator(ExportMD5.bl_idname, text="idTech 4 MD5 (.md5mesh .md5anim)", icon='BLENDER').filepath = default_path
-  
+
+# blender gui module register  
 def register():
-  bpy.utils.register_module(__name__)  #mikshaw
+  bpy.utils.register_module(__name__)
   bpy.types.INFO_MT_file_export.append(menu_func)
 
+# blender gui module unregister  
 def unregister():
-  bpy.utils.unregister_module(__name__)  #mikshaw
+  bpy.utils.unregister_module(__name__)
   bpy.types.INFO_MT_file_export.remove(menu_func)
-  
+
+# running as external script
 if __name__ == "__main__":
-  io_export_md5()
+  console()
