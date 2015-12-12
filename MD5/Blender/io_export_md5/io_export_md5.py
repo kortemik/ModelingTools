@@ -176,7 +176,8 @@ class MD5Math(object):
     return q.col[0] / l, q.col[1] / l, q.col[2] / l, q.col[3] / l
 
   def getminmax(listofpoints):
-    if len(listofpoints[0]) == 0: return ([0,0,0],[0,0,0])
+    if len(listofpoints[0]) == 0:
+        return ([0,0,0],[0,0,0])
     min = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
     max = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
     if len(listofpoints[0])>1:
@@ -603,7 +604,7 @@ class MD5Settings(object):
 class MD5Save(object):
   def __init__(self, settings):
     self.settings = settings
-    self.thearmature = 0  #null to start, will assign in next section || TODO check if limiting for multiple meshes
+    self.thearmature = None  #null to start, will assign in next section || TODO check if limiting for multiple meshes
     self.skeleton = 0
     self.meshes = []
     self.ANIMATIONS = 0
@@ -615,7 +616,7 @@ class MD5Save(object):
   def armature(self):
 
     #first pass on selected data, pull one skeleton
-    self.skeleton = Skeleton(10)
+    self.skeleton = Skeleton()
     bpy.context.scene.frame_set(bpy.context.scene.frame_start)
     for obj in bpy.context.selected_objects:
       if obj.type == 'ARMATURE':
@@ -734,7 +735,7 @@ class MD5Save(object):
                           continue
                     else: # we have a vertex that is probably not skinned. export anyway
                       try:
-                          vertex.influences.append(Influence(self.BONES[bone_name], weight))
+                          vertex.influences.append(Influence(self.BONES[bone_name], weight)) # TODO warn?
                       except:
                           continue
 
