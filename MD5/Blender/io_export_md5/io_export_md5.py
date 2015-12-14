@@ -17,13 +17,14 @@
 # ***** END GPL LICENCE BLOCK *****
 #
 
-import bpy,struct,math,os,time,sys,mathutils
+import struct,math,os,time,sys
+
+import mathutils
+import bpy
+from bpy.props import StringProperty,EnumProperty,FloatProperty
 from bpy_extras.io_utils import ExportHelper
 
-from bpy.props import *
-
 import getopt
-
 import traceback
 
 #"""
@@ -80,101 +81,6 @@ class Typewriter(object):
 #MATH UTILTY
 
 class MD5Math(object):
-
-  def vector_crossproduct(v1, v2):
-    return [
-      v1[1] * v2[2] - v1[2] * v2[1],
-      v1[2] * v2[0] - v1[0] * v2[2],
-      v1[0] * v2[1] - v1[1] * v2[0],
-      ]
-
-  def point_by_matrix(p, m):
-    #print( str(type( p )) + " " + str(type(m)) )
-    return [p[0] * m[0][0] + p[1] * m[1][0] + p[2] * m[2][0] + m[3][0],
-            p[0] * m[0][1] + p[1] * m[1][1] + p[2] * m[2][1] + m[3][1],
-            p[0] * m[0][2] + p[1] * m[1][2] + p[2] * m[2][2] + m[3][2]]
-
-  def vector_by_matrix(p, m):
-    return [p[0] * m.col[0][0] + p[1] * m.col[1][0] + p[2] * m.col[2][0],
-            p[0] * m.col[0][1] + p[1] * m.col[1][1] + p[2] * m.col[2][1],
-            p[0] * m.col[0][2] + p[1] * m.col[1][2] + p[2] * m.col[2][2]]
-
-  def vector_normalize(v):
-    l = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
-    try:
-      return v[0] / l, v[1] / l, v[2] / l
-    except:
-      return 1, 0, 0
-
-  def matrix2quaternion(m):
-    s = math.sqrt(abs(m.col[0][0] + m.col[1][1] + m.col[2][2] + m.col[3][3]))
-    if s == 0.0:
-      x = abs(m.col[2][1] - m.col[1][2])
-      y = abs(m.col[0][2] - m.col[2][0])
-      z = abs(m.col[1][0] - m.col[0][1])
-      if   (x >= y) and (x >= z): return 1.0, 0.0, 0.0, 0.0
-      elif (y >= x) and (y >= z): return 0.0, 1.0, 0.0, 0.0
-      else:                       return 0.0, 0.0, 1.0, 0.0
-    return quaternion_normalize([
-      -(m.col[2][1] - m.col[1][2]) / (2.0 * s),
-      -(m.col[0][2] - m.col[2][0]) / (2.0 * s),
-      -(m.col[1][0] - m.col[0][1]) / (2.0 * s),
-      0.5 * s,
-      ])
-
-  def matrix_invert(m):
-    det = (m.col[0][0] * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2])
-         - m.col[1][0] * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2])
-         + m.col[2][0] * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]))
-    if det == 0.0: return None
-    det = 1.0 / det
-  # transposed matrix
-  #  r = [ [
-  #      det * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2]),
-  #    - det * (m.col[1][0] * m.col[2][2] - m.col[2][0] * m.col[1][2]),
-  #      det * (m.col[1][0] * m.col[2][1] - m.col[2][0] * m.col[1][1]),
-  #    ], [
-  #    - det * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2]),
-  #     det * (m.col[0][0] * m.col[2][2] - m.col[2][0] * m.col[0][2]),
-  #   - det * (m.col[0][0] * m.col[2][1] - m.col[2][0] * m.col[0][1]),
-  #    ], [
-  #      det * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]),
-  #    - det * (m.col[0][0] * m.col[1][2] - m.col[1][0] * m.col[0][2]),
-  #      det * (m.col[0][0] * m.col[1][1] - m.col[1][0] * m.col[0][1]),
-  #    ], [
-  #      0.0,
-  #      0.0,
-  #      0.0,
-  #    ] ]
-  # original matrix from 2.61 compaticle script adopted for 2.62; the mesh with this matric is consistent, but rotated 180 degrees around Z axis and centered at 0 0 0
-    r = [ [
-        det * (m.col[1][1] * m.col[2][2] - m.col[2][1] * m.col[1][2]),
-      - det * (m.col[0][1] * m.col[2][2] - m.col[2][1] * m.col[0][2]),
-        det * (m.col[0][1] * m.col[1][2] - m.col[1][1] * m.col[0][2]),
-        0.0,
-      ], [
-      - det * (m.col[1][0] * m.col[2][2] - m.col[2][0] * m.col[1][2]),
-        det * (m.col[0][0] * m.col[2][2] - m.col[2][0] * m.col[0][2]),
-      - det * (m.col[0][0] * m.col[1][2] - m.col[1][0] * m.col[0][2]),
-        0.0
-      ], [
-        det * (m.col[1][0] * m.col[2][1] - m.col[2][0] * m.col[1][1]),
-      - det * (m.col[0][0] * m.col[2][1] - m.col[2][0] * m.col[0][1]),
-        det * (m.col[0][0] * m.col[1][1] - m.col[1][0] * m.col[0][1]),
-        0.0,
-      ] ]
-    r.append([
-      -(m.col[3][0] * r[0][0] + m.col[3][1] * r[1][0] + m.col[3][2] * r[2][0]),
-      -(m.col[3][0] * r[0][1] + m.col[3][1] * r[1][1] + m.col[3][2] * r[2][1]),
-      -(m.col[3][0] * r[0][2] + m.col[3][1] * r[1][2] + m.col[3][2] * r[2][2]),
-      1.0,
-      ])
-    return r
-
-  def quaternion_normalize(q):
-    l = math.sqrt(q.col[0] * q.col[0] + q.col[1] * q.col[1] + q.col[2] * q.col[2] + q.col[3] * q.col[3])
-    return q.col[0] / l, q.col[1] / l, q.col[2] / l, q.col[3] / l
-
   def getminmax(listofpoints):
     if len(listofpoints[0]) == 0:
         return ([0,0,0],[0,0,0])
@@ -363,8 +269,8 @@ class Weight(object):
     self.weight = weight
     self.vertex = vertex
     self.indx = weightindx
-    invbonematrix = MD5Math.matrix_invert(self.bone.matrix)
-    self.x, self.y, self.z = MD5Math.point_by_matrix ((x, y, z), invbonematrix)
+    invbonematrix = self.bone.matrix.transposed().inverted()
+    self.x, self.y, self.z = mathutils.Vector((x, y, z))*invbonematrix
     
   def to_md5mesh(self):
     buf = "%i %f ( %f %f %f )" % (self.bone.id, self.weight, self.x*scale, self.y*scale, self.z*scale)
@@ -576,20 +482,23 @@ class MD5Animation(object):
           (lx, ly, lz ) = obj.location
           #bbox = obj.getBoundBox()
           bbox = obj.bound_box
-  # transposed matrix
-  #        matrix = [[1.0,  0.0,  0.0,  0.0],
-  #          [0.0,  1.0,  1.0,  0.0],
-  #          [0.0,  0.0,  1.0,  0.0],
-  #          [0.0,  0.0,  0.0,  1.0],
-  #          ]
-  # original matrix from the 2.61 compatible script
-          matrix = [[1.0,  0.0, 0.0, 0.0],
+          # transposed matrix
+          #        matrix = [[1.0,  0.0,  0.0,  0.0],
+          #          [0.0,  1.0,  1.0,  0.0],
+          #          [0.0,  0.0,  1.0,  0.0],
+          #          [0.0,  0.0,  0.0,  1.0],
+          #          ]
+          # original matrix from the 2.61 compatible script
+          matrix = mathutils.Matrix([[1.0,  0.0, 0.0, 0.0],
             [0.0,  1.0, 0.0, 0.0],
             [0.0,  1.0, 1.0, 0.0],
             [0.0,  0.0, 0.0, 1.0],
-            ]
+            ])
           for v in bbox:
-            corners.append(MD5Math.point_by_matrix (v, matrix))
+            vecp = mathutils.Vector((v[0], v[1], v[2]))
+            corners.append(vecp*matrix)
+            #corners.append(MD5Math.point_by_matrix (v, matrix))
+            
       (min, max) = MD5Math.getminmax(corners)
       md5animation.bounds.append((min[0]*scale, min[1]*scale, min[2]*scale, max[0]*scale, max[1]*scale, max[2]*scale))
   
@@ -700,10 +609,12 @@ class MD5Save(object):
                 p1 = verts[ face.vertices[0] ].co
                 p2 = verts[ face.vertices[1] ].co
                 p3 = verts[ face.vertices[2] ].co
-                normal = MD5Math.vector_normalize(MD5Math.vector_by_matrix(MD5Math.vector_crossproduct( \
-                  [p3[0] - p2[0], p3[1] - p2[1], p3[2] - p2[2]], \
-                  [p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]], \
-                  ), w_matrix))
+
+                vector1 = mathutils.Vector((p3[0] - p2[0], p3[1] - p2[1], p3[2] - p2[2]))
+                vector2 = mathutils.Vector((p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2]))
+                vectorcp = mathutils.Vector.cross(vector1, vector2)
+
+                normal = mathutils.Vector.normalize(vectorcp*w_matrix)
 
               #for each vertex in this face, add unique to vertices dictionary
               face_vertices = []
@@ -711,9 +622,13 @@ class MD5Save(object):
                 vertex = False
                 if face.vertices[i] in vertices: 
                   vertex = vertices[  face.vertices[i] ] #type of Vertex
+                  
                 if not vertex: #found unique vertex, add to list
-                  coord  = MD5Math.point_by_matrix( verts[face.vertices[i]].co, w_matrix ) #TODO: fix possible bug here
-                  if face.use_smooth: normal = MD5Math.vector_normalize(MD5Math.vector_by_matrix( verts[face.vertices[i]].normal, w_matrix ))
+                  coord = (verts[face.vertices[i]].co)*w_matrix #TODO: fix possible bug here ?
+
+                  if face.use_smooth:
+                    normal = mathutils.Vector.normalize((verts[face.vertices[i]].normal)*w_matrix)
+                    
                   vertex  = vertices[face.vertices[i]] = Vertex(submesh, coord, normal) 
                   createVertexA += 1
 
