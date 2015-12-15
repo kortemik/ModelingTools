@@ -99,17 +99,36 @@ class MD5Math(object):
 # http://tfc.duke.free.fr/coding/md5-specs-en.html
 
 class MD5File(object):
-  def __init__(self):
-    self.version = 0 # MD5 File version
-    self.commandline = None # commandline used to generate file
+  def __init__(self, filename, commandline):
+    self.filename = filename
+    self.version = 10 # MD5 File version, hardcoded
+    self.commandline = commandline # commandline used to generate file
     self.numjoints = 0 # number of joints
 
+  def set_numjoints(self, numjoints):
+    self.numjoints = numjoints
+
 class MeshFile(MD5File):
-  None
+  def __init__(self):
+    self.meshs = [] # list of meshs, multiple ?
+    self.joints = None # joints
+
+    def add_mesh(self, mesh):
+      self.meshs.append(mesh)
+
+    def set_joints(self, joints):
+      self.joints = joints  
+    
   class Joints(object):
-    None
+    def __init__(self):
+      self.joints = [] # list of joints
+
+    def add_joint(self, joint):
+      self.joints.append(joint)
+      
     class Joint(object):
-      None
+      None # TODO
+      
   class Mesh(object):
     def __init__(self):
       self.shader = None
@@ -120,40 +139,93 @@ class MeshFile(MD5File):
       self.numweights = 0 # number of weights
       self.weights = [] # list of weights
 
+    def set_shader(self, shadername):
+      self.shader = shadername
+
+    def add_vert(self, vert):
+      self.verts.append(vert)
+
+    def add_tri(self, tri):
+      self.tris.append(tri)
+
+    def add_weight(self, weight):
+      self.weights.append(weight)
+      
     class Vert(object):
-      None
+      None # TODO
     class Tri(object):
-      None
+      None # TODO
     class Weight(object):
-      None
+      None #TODO
         
-class Anim(MD5File):
+class AnimFile(MD5File):
   def __init__(self):
     self.framecount = 0 # frame count
     self.framerate = 0 # frame rate
     self.componentcount = 0 # parameters per frame used to compute the frame skeletons
+    self.hierarchy = None
+    self.bounds = None
+    self.baseframe = None
+    self.frames = [] # list of frames
+
+  def set_framecount(self, framecount):
+    self.framecount = framecount
+
+  def set_framerate(self, framerate):
+    self.framerate = framerate
+
+  def set_componentcount(self, componentcount):
+    self.component.count = componentcount
+
+  def set_bounds(self, bounds):
+    self.bounds = bounds
+
+  def set_baseframe(self, baseframe):
+    self.baseframe = baseframe
+
+  def add_frame(self, frame):
+    self.frames.append(frame)
 
   class Hierarchy(object):
     def __init__(self):
       self.joints = [] # joint hierarchy
+
+    def add_joint(self, joint):
+      self.joints.append(joint)
+      
     class Joint(object):
       # parent flags startIndex
-      None
+      None # TODO
+      
   class Bounds(object):
     def __init__(self):
       self.bounds = [] # bounding boxes for each frame
+
+    def add_bound(self, bound):
+      self.bounds.append(bound)
+      
     class Bound(object):
-      None
+      None # TODO
+      
   class BaseFrame(object):
     def __init__(self):
       self.stands = [] # position and orientation of bones
+
+    def add_stand(self, stand):
+      self.stands.append(stand)
+      
     class Stand(object):
-      None
+      None # TODO
+      
   class Frame(object):
     def __init__(self):
       self.components = [] # bone translation components
+
+    def add_component(self, framecomponent):
+      self.components.append(framecomponent)
+      
     class FrameComponent(object):
-      None
+      None # TODO
       
     
 
