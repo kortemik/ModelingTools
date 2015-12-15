@@ -96,6 +96,67 @@ class MD5Math(object):
         if listofpoints[i][2]<min[2]: min[2]=listofpoints[i][2]
     return (min, max)
 
+# http://tfc.duke.free.fr/coding/md5-specs-en.html
+
+class MD5File(object):
+  def __init__(self):
+    self.version = 0 # MD5 File version
+    self.commandline = None # commandline used to generate file
+    self.numjoints = 0 # number of joints
+
+class MeshFile(MD5File):
+  None
+  class Joints(object):
+    None
+    class Joint(object):
+      None
+  class Mesh(object):
+    def __init__(self):
+      self.shader = None
+      self.numverts = 0 # number of verts
+      self.verts = [] # list of verts
+      self.numtris = 0 # number of tris
+      self.tris = [] # list of tris
+      self.numweights = 0 # number of weights
+      self.weights = [] # list of weights
+
+    class Vert(object):
+      None
+    class Tri(object):
+      None
+    class Weight(object):
+      None
+        
+class Anim(MD5File):
+  def __init__(self):
+    self.framecount = 0 # frame count
+    self.framerate = 0 # frame rate
+    self.componentcount = 0 # parameters per frame used to compute the frame skeletons
+
+  class Hierarchy(object):
+    def __init__(self):
+      self.joints = [] # joint hierarchy
+    class Joint(object):
+      # parent flags startIndex
+      None
+  class Bounds(object):
+    def __init__(self):
+      self.bounds = [] # bounding boxes for each frame
+    class Bound(object):
+      None
+  class BaseFrame(object):
+    def __init__(self):
+      self.stands = [] # position and orientation of bones
+    class Stand(object):
+      None
+  class Frame(object):
+    def __init__(self):
+      self.components = [] # bone translation components
+    class FrameComponent(object):
+      None
+      
+    
+
 class Component(object):
   #shader material
   class Material(object):
