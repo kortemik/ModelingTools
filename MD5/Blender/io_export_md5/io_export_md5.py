@@ -127,7 +127,16 @@ class MeshFile(MD5File):
       self.joints.append(joint)
       
     class Joint(object):
-      None # TODO
+      # "name" parent ( pos.x pos.y pos.z ) ( orient.x orient.y orient.z )
+      def __init__(self, name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+        self.name = name
+        self.parent = parent
+        self.pos_x = pos_x
+        self.pos_y = pos_y
+        self.pos_z = pos_z
+        self.ori_x = ori_x
+        self.ori_y = ori_y
+        self.ori_z = ori_z
       
   class Mesh(object):
     def __init__(self):
@@ -152,11 +161,32 @@ class MeshFile(MD5File):
       self.weights.append(weight)
       
     class Vert(object):
-      None # TODO
+      # vert vertIndex ( s t ) startWeight countWeight
+      def __init__(self, index, texture_x, texture_y, weightstart, weightcount):
+        self.index = index
+        self.texture_x = texture_x # u, s
+        self.texutre_y = texture_y # v, t
+        self.weightstart = weightstart
+        self.weightcount = weightcount
+        
     class Tri(object):
-      None # TODO
+      # tri triIndex vertIndex[0] vertIndex[1] vertIndex[2]
+      def __init__(self, index, vert1, vert2, vert3):
+        self.index = index
+        self.vert1 = vert1
+        self.vert2 = vert2
+        self.vert3 = vert3
+
+
     class Weight(object):
-      None #TODO
+      # weight weightIndex joint bias ( pos.x pos.y pos.z )
+      def __init__(self, index, joint, bias, pos_x, pos_y, pos_z):
+        self.index = index
+        self.rel_joint = joint
+        self.bias = bias
+        self.pos_x = pos_x
+        self.pos_y = pos_y
+        self.pos_z = pos_z
         
 class AnimFile(MD5File):
   def __init__(self):
@@ -177,6 +207,9 @@ class AnimFile(MD5File):
   def set_componentcount(self, componentcount):
     self.component.count = componentcount
 
+  def set_hierarchy(self, hirarchy):
+    self.hierarchy = hierarchy
+
   def set_bounds(self, bounds):
     self.bounds = bounds
 
@@ -194,8 +227,12 @@ class AnimFile(MD5File):
       self.joints.append(joint)
       
     class Joint(object):
-      # parent flags startIndex
-      None # TODO
+      # name parent flags startIndex
+      def __init__(self, name, parent, flags, startindex):
+        self.name = name
+        self.parent = parent
+        self.flags = flags
+        self.startindex = startindex
       
   class Bounds(object):
     def __init__(self):
@@ -205,29 +242,48 @@ class AnimFile(MD5File):
       self.bounds.append(bound)
       
     class Bound(object):
-      None # TODO
+      # ( min.x min.y min.z ) ( max.x max.y max.z )
+      def __init__(self, min_x, min_y, min_z, max_x, max_y, max_z):
+        self.min_x = min_x
+        self.min_y = min_y
+        self.min_z = min_z
+        self.max_x = max_x
+        self.max_y = max_y
+        self.max_z = max_z
       
   class BaseFrame(object):
     def __init__(self):
-      self.stands = [] # position and orientation of bones
+      self.basepositions = [] # position and orientation of bones
 
-    def add_stand(self, stand):
-      self.stands.append(stand)
+    def add_baseposition(self, baseposition):
+      self.basepositions.append(baseposition)
       
-    class Stand(object):
-      None # TODO
+    class BasePosition(object):
+      # ( pos.x pos.y pos.z ) ( orient.x orient.y orient.z )
+      def __init__(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+        self.pos_x = pos_x
+        self.pos_y = pos_y
+        self.pos_z = pos_z
+        self.ori_x = ori_x
+        self.ori_y = ori_y
+        self.ori_z = ori_z
       
   class Frame(object):
-    def __init__(self):
-      self.components = [] # bone translation components
+    def __init__(self, frameindex):
+      self.framepositions = [] # bone positions for frame
+      self.frameindex = frameindex
 
-    def add_component(self, framecomponent):
-      self.components.append(framecomponent)
-      
-    class FrameComponent(object):
-      None # TODO
-      
-    
+    def add_frameposition(self, frameposition):
+      self.framepositions.append(frameposition)
+
+    class FramePosition(object):
+      def __init__(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+        self.pos_x = pos_x
+        self.pos_y = pos_y
+        self.pos_z = pos_z
+        self.ori_x = ori_x
+        self.ori_y = ori_y
+        self.ori_z = ori_z
 
 class Component(object):
   #shader material
