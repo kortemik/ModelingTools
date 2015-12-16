@@ -96,136 +96,145 @@ class MD5Math(object):
         if listofpoints[i][2]<min[2]: min[2]=listofpoints[i][2]
     return (min, max)
 
+################################################################################
+#
+# MD5File object, should be it's own module but that and blender don't cope
 # http://tfc.duke.free.fr/coding/md5-specs-en.html
+#
 
-class MD5File(object):
-  def __init__(self, filename, commandline):
-    self.filename = filename
-    self.version = 10 # MD5 File version, hardcoded
-    self.commandline = commandline # commandline used to generate file
-    self.numjoints = 0 # number of joints
+class MD5Format(object):
+  def __init__(self, commandline):
+    self._version = 10 # MD5 File version, hardcoded
+    self._commandline = commandline  # commandline used to generate file
 
-  def set_numjoints(self, numjoints):
-    self.numjoints = numjoints
-
-class MeshFile(MD5File):
-  def __init__(self):
-    self.meshs = [] # list of meshs, multiple ?
-    self.joints = None # joints
-
-    def add_mesh(self, mesh):
-      self.meshs.append(mesh)
-
-    def set_joints(self, joints):
-      self.joints = joints  
-    
+class MD5MeshFormat(MD5Format):
   class Joints(object):
-    def __init__(self):
-      self.joints = [] # list of joints
-
-    def add_joint(self, joint):
-      self.joints.append(joint)
-      
-    class Joint(object):
+    class _Joint(object):
       # "name" parent ( pos.x pos.y pos.z ) ( orient.x orient.y orient.z )
       def __init__(self, name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
-        self.name = name
-        self.parent = parent
-        self.pos_x = pos_x
-        self.pos_y = pos_y
-        self.pos_z = pos_z
-        self.ori_x = ori_x
-        self.ori_y = ori_y
-        self.ori_z = ori_z
-      
-  class Mesh(object):
+        self._name = name
+        self._parent = parent
+        self._pos_x = pos_x
+        self._pos_y = pos_y
+        self._pos_z = pos_z
+        self._ori_x = ori_x
+        self._ori_y = ori_y
+        self._ori_z = ori_z
+
+      def __repr__(self):
+        return "\t\"%s\" %s ( %f %f %f ) ( %f %f %f )\n" % \
+          (self._name, self._parent, self._pos_x, self._pos_y, self._pos_z, self._ori_x, self._ori_y, self._ori_z)
+
     def __init__(self):
-      self.shader = None
-      self.numverts = 0 # number of verts
-      self.verts = [] # list of verts
-      self.numtris = 0 # number of tris
-      self.tris = [] # list of tris
-      self.numweights = 0 # number of weights
-      self.weights = [] # list of weights
+      self._joints = [] # list of joints
 
-    def set_shader(self, shadername):
-      self.shader = shadername
+    def __len__(self):
+      return len(self._joints)
 
-    def add_vert(self, vert):
-      self.verts.append(vert)
+    def __repr__(self):
+      return "joints {\n%s}\n\n" % \
+        ("".join( [ repr(element) for element in self._joints ] ))
+    
+    def Joint(self, name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+      created_joint = self._Joint(name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
+      self._joints.append(created_joint)
+      return created_joint
 
-    def add_tri(self, tri):
-      self.tris.append(tri)
+  class _Mesh(object):
 
-    def add_weight(self, weight):
-      self.weights.append(weight)
-      
-    class Vert(object):
+    class _Vert(object):
       # vert vertIndex ( s t ) startWeight countWeight
       def __init__(self, index, texture_x, texture_y, weightstart, weightcount):
-        self.index = index
-        self.texture_x = texture_x # u, s
-        self.texutre_y = texture_y # v, t
-        self.weightstart = weightstart
-        self.weightcount = weightcount
-        
-    class Tri(object):
+        self._index = index
+        self._texture_x = texture_x # u, s
+        self._texture_y = texture_y # v, t
+        self._weightstart = weightstart
+        self._weightcount = weightcount
+
+      def __repr__(self):
+        return "\tvert %i ( %f %f ) %i %i\n" % \
+          (self._index, self._texture_x, self._texture_y, self._weightstart, self._weightcount)
+
+
+    class _Tri(object):
       # tri triIndex vertIndex[0] vertIndex[1] vertIndex[2]
       def __init__(self, index, vert1, vert2, vert3):
-        self.index = index
-        self.vert1 = vert1
-        self.vert2 = vert2
-        self.vert3 = vert3
+        self._index = index
+        self._vert1 = vert1
+        self._vert2 = vert2
+        self._vert3 = vert3
+        
+      def __repr__(self):
+        return "\ttri %i %i %i %i\n" % \
+          (self._index, self._vert1, self._vert2, self._vert3)
 
 
-    class Weight(object):
+    class _Weight(object):
       # weight weightIndex joint bias ( pos.x pos.y pos.z )
       def __init__(self, index, joint, bias, pos_x, pos_y, pos_z):
-        self.index = index
-        self.rel_joint = joint
-        self.bias = bias
-        self.pos_x = pos_x
-        self.pos_y = pos_y
-        self.pos_z = pos_z
-        
-class AnimFile(MD5File):
-  def __init__(self):
-    self.framecount = 0 # frame count
-    self.framerate = 0 # frame rate
-    self.componentcount = 0 # parameters per frame used to compute the frame skeletons
-    self.hierarchy = None
-    self.bounds = None
-    self.baseframe = None
-    self.frames = [] # list of frames
+        self._index = index
+        self._rel_joint = joint
+        self._bias = bias
+        self._pos_x = pos_x
+        self._pos_y = pos_y
+        self._pos_z = pos_z
 
-  def set_framecount(self, framecount):
-    self.framecount = framecount
+      def __repr__(self):
+        return "\tweight %i %i %f ( %f %f %f )\n" % \
+          (self._index, self._rel_joint, self._bias, self._pos_x, self._pos_y, self._pos_z)
 
-  def set_framerate(self, framerate):
-    self.framerate = framerate
 
-  def set_componentcount(self, componentcount):
-    self.component.count = componentcount
+    def __init__(self, shader):
+      self._shader = shader
+      self._verts = [] # list of verts
+      self._tris = [] # list of tris
+      self._weights = [] # list of weights
 
-  def set_hierarchy(self, hirarchy):
-    self.hierarchy = hierarchy
+    def __repr__(self):
+      return "mesh {\n\tshader \"%s\"\n\n\tnumverts %i\n%s\n\tnumtris %i\n%s\n\tnumweights %i\n%s}\n" % \
+        (self._shader,
+         len(self._verts),
+         "".join( [ repr(element) for element in self._verts ] ),
+         len(self._tris),
+         "".join( [ repr(element) for element in self._tris ] ),
+         len(self._weights),
+         "".join( [ repr(element) for element in self._weights ] ))
 
-  def set_bounds(self, bounds):
-    self.bounds = bounds
 
-  def set_baseframe(self, baseframe):
-    self.baseframe = baseframe
+    def Vert(self, index, texture_x, texture_y, weightstart, weightcount):
+      created_vert = self._Vert(index, texture_x, texture_y, weightstart, weightcount)
+      self._verts.append(created_vert)
+      return created_vert
 
-  def add_frame(self, frame):
-    self.frames.append(frame)
+    def Tri(self, index, vert1, vert2, vert3):
+      created_tri = self._Tri(index, vert1, vert2, vert3)
+      self._tris.append(created_tri)
+      return created_tri
 
+    def Weight(self, index, joint, bias, pos_x, pos_y, pos_z):
+      created_weight = self._Weight(index, joint, bias, pos_x, pos_y, pos_z)
+      self._weights.append(created_weight)
+      return created_weight
+
+  def Mesh(self, shader):
+    created_mesh = self._Mesh(shader)
+    self._meshes.append(created_mesh)
+    return created_mesh
+
+  def __init__(self, commandline):
+    super().__init__(commandline)
+    self.Joints = self.Joints() # joints
+    self._meshes = [] # list of meshes
+
+  def __repr__(self):
+    return "MD5Version %i\ncommandline \"%s\"\n\nnumJoints %i\nnumMeshes %i\n\n%s%s" % \
+      (self._version, self._commandline, len(self.Joints), len(self._meshes), \
+       repr(self.Joints), \
+       "".join( [ repr(element) for element in self._meshes ] ))
+
+# TODO Animfile objectification
+class MD5AnimFormat(MD5Format):
   class Hierarchy(object):
-    def __init__(self):
-      self.joints = [] # joint hierarchy
-
-    def add_joint(self, joint):
-      self.joints.append(joint)
-      
     class Joint(object):
       # name parent flags startIndex
       def __init__(self, name, parent, flags, startindex):
@@ -233,14 +242,17 @@ class AnimFile(MD5File):
         self.parent = parent
         self.flags = flags
         self.startindex = startindex
+        
+    def __init__(self):
+      self.joints = [] # joint hierarchy
+
+    def new_joint(self, name, parent, flags, startindex):
+      created_joint = Joint(name, parent, flags, startindex)
+      self.joints.append(created_joint)
+      return joint
+
       
   class Bounds(object):
-    def __init__(self):
-      self.bounds = [] # bounding boxes for each frame
-
-    def add_bound(self, bound):
-      self.bounds.append(bound)
-      
     class Bound(object):
       # ( min.x min.y min.z ) ( max.x max.y max.z )
       def __init__(self, min_x, min_y, min_z, max_x, max_y, max_z):
@@ -250,14 +262,17 @@ class AnimFile(MD5File):
         self.max_x = max_x
         self.max_y = max_y
         self.max_z = max_z
+        
+    def __init__(self):
+      self.bounds = [] # bounding boxes for each frame
+
+    def new_bound(self, min_x, min_y, min_z, max_x, max_y, max_z):
+      created_bound = Bound(min_x, min_y, min_z, max_x, max_y, max_z)
+      self.bounds.append(created_bound)
+      return created_bound
+
       
   class BaseFrame(object):
-    def __init__(self):
-      self.basepositions = [] # position and orientation of bones
-
-    def add_baseposition(self, baseposition):
-      self.basepositions.append(baseposition)
-      
     class BasePosition(object):
       # ( pos.x pos.y pos.z ) ( orient.x orient.y orient.z )
       def __init__(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
@@ -267,15 +282,16 @@ class AnimFile(MD5File):
         self.ori_x = ori_x
         self.ori_y = ori_y
         self.ori_z = ori_z
+        
+    def __init__(self):
+      self.basepositions = [] # position and orientation of bones
+
+    def new_baseposition(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+      created_baseposition = BasePosition(pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
+      self.basepositions.append(created_baseposition)
+      return created_baseposition
       
   class Frame(object):
-    def __init__(self, frameindex):
-      self.framepositions = [] # bone positions for frame
-      self.frameindex = frameindex
-
-    def add_frameposition(self, frameposition):
-      self.framepositions.append(frameposition)
-
     class FramePosition(object):
       def __init__(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
         self.pos_x = pos_x
@@ -284,6 +300,41 @@ class AnimFile(MD5File):
         self.ori_x = ori_x
         self.ori_y = ori_y
         self.ori_z = ori_z
+        
+    def __init__(self, frameindex):
+      self.framepositions = [] # bone positions for frame
+      self.frameindex = frameindex
+
+    def new_frameposition(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+      created_frameposition = FramePosition(pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
+      self.framepositions.append(created_frameposition)
+      return created_frameposition
+
+
+  def __init__(self):
+    self.framecount = 0 # frame count
+    self.framerate = 0 # frame rate
+    self.componentcount = 0 # parameters per frame used to compute the frame skeletons
+    self.Hierarchy = self.Hierarchy()
+    self.Bounds = self.Bounds()
+    self.BaseFrame = self.BaseFrame()
+    self.frames = [] # list of frames
+
+  def set_framecount(self, framecount):
+    self.framecount = framecount
+
+  def set_framerate(self, framerate):
+    self.framerate = framerate
+
+  def set_componentcount(self, componentcount):
+    self.componentcount = componentcount
+
+  def new_frame(self, frameindex):
+    created_frame = self.Frame(frameindex)
+    self.frames.append(created_frame)
+    return created_frame
+
+################################################################################
 
 class Component(object):
   #shader material
@@ -952,10 +1003,7 @@ class MD5Save(object):
         for submesh in self.meshes[mesh].submeshes:
           submesh.bindtomesh(self.meshes[0])
     if (md5mesh_filename != ""):
-      try:
-        file = open(md5mesh_filename, 'w')
-      except IOError:
-        errmsg = "IOError " #%s: %s" % (errno, strerror)
+      file = open(md5mesh_filename, 'w')
       buffer = self.skeleton.to_md5mesh(len(self.meshes[0].submeshes))
       #for mesh in meshes:
       buffer = buffer + self.meshes[0].to_md5mesh()
@@ -1190,4 +1238,12 @@ def unregister():
 
 # running as external script
 if __name__ == "__main__":
+
+  a = MD5MeshFormat('commandline from inline code')
+  a.Joints.Joint('name', -1, -0.01, -0.01, -0.01, -0.01, -0.01, -0.01)
+  new_mesh = a.Mesh("shader")
+  new_vert = new_mesh.Vert(1, 2, 3, 4, 5)
+  new_tri = new_mesh.Tri(0, 1, 2, 3)
+  new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+  print(a)
   console()
