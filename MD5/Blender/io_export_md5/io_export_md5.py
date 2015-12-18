@@ -232,108 +232,167 @@ class MD5MeshFormat(MD5Format):
        repr(self.Joints), \
        "".join( [ repr(element) for element in self._meshes ] ))
 
-# TODO Animfile objectification
 class MD5AnimFormat(MD5Format):
   class Hierarchy(object):
-    class Joint(object):
+    class _Joint(object):
       # name parent flags startIndex
       def __init__(self, name, parent, flags, startindex):
-        self.name = name
-        self.parent = parent
-        self.flags = flags
-        self.startindex = startindex
+        self._name = name
+        self._parent = parent
+        self._flags = flags
+        self._startindex = startindex
+        
+      def __repr__(self):
+        return "\t\"%s\" %s %i %i\n" % \
+          (self._name, self._parent, self._flags, self._startindex)
         
     def __init__(self):
-      self.joints = [] # joint hierarchy
+      self._joints = [] # joint hierarchy
 
-    def new_joint(self, name, parent, flags, startindex):
-      created_joint = Joint(name, parent, flags, startindex)
-      self.joints.append(created_joint)
-      return joint
+    def __repr__(self):
+      return "hierarchy {\n%s}\n" % \
+        ("".join( [ repr(element) for element in self._joints ] ))
+
+    def __len__(self):
+      return len(self._joints)
+
+    def Joint(self, name, parent, flags, startindex):
+      created_joint = self._Joint(name, parent, flags, startindex)
+      self._joints.append(created_joint)
+      return created_joint
 
       
   class Bounds(object):
-    class Bound(object):
+    class _Bound(object):
       # ( min.x min.y min.z ) ( max.x max.y max.z )
       def __init__(self, min_x, min_y, min_z, max_x, max_y, max_z):
-        self.min_x = min_x
-        self.min_y = min_y
-        self.min_z = min_z
-        self.max_x = max_x
-        self.max_y = max_y
-        self.max_z = max_z
+        self._min_x = min_x
+        self._min_y = min_y
+        self._min_z = min_z
+        self._max_x = max_x
+        self._max_y = max_y
+        self._max_z = max_z
+        
+      def __repr__(self):
+        return "\t( %f %f %f ) ( %f %f %f )\n" % \
+          (self._min_x, self._min_y, self._min_z, self._max_x, self._max_y, self._max_z)
+
         
     def __init__(self):
-      self.bounds = [] # bounding boxes for each frame
+      self._bounds = [] # bounding boxes for each frame
 
-    def new_bound(self, min_x, min_y, min_z, max_x, max_y, max_z):
-      created_bound = Bound(min_x, min_y, min_z, max_x, max_y, max_z)
-      self.bounds.append(created_bound)
+    def __repr__(self):
+      return "bounds {\n%s}\n\n" % \
+        ("".join(repr(element) for element in self._bounds))
+
+    def Bound(self, min_x, min_y, min_z, max_x, max_y, max_z):
+      created_bound = self._Bound(min_x, min_y, min_z, max_x, max_y, max_z)
+      self._bounds.append(created_bound)
       return created_bound
 
       
   class BaseFrame(object):
-    class BasePosition(object):
+    class _BasePosition(object):
       # ( pos.x pos.y pos.z ) ( orient.x orient.y orient.z )
       def __init__(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
-        self.pos_x = pos_x
-        self.pos_y = pos_y
-        self.pos_z = pos_z
-        self.ori_x = ori_x
-        self.ori_y = ori_y
-        self.ori_z = ori_z
+        self._pos_x = pos_x
+        self._pos_y = pos_y
+        self._pos_z = pos_z
+        self._ori_x = ori_x
+        self._ori_y = ori_y
+        self._ori_z = ori_z
+
+      def __repr__(self):
+        return "\t( %f %f %f ) ( %f %f %f )\n" % \
+          (self._pos_x, self._pos_y, self._pos_z, self._ori_x, self._ori_y, self._ori_z)
         
     def __init__(self):
-      self.basepositions = [] # position and orientation of bones
+      self._basepositions = [] # position and orientation of bones
+      
+    def __repr__(self):
+      return "baseframe {\n%s}\n\n" % \
+        ("".join([repr(element) for element in self._basepositions]))
 
-    def new_baseposition(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
-      created_baseposition = BasePosition(pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
-      self.basepositions.append(created_baseposition)
+    def __len__(self):
+      return len(self._basepositions)
+
+    def BasePosition(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+      created_baseposition = self._BasePosition(pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
+      self._basepositions.append(created_baseposition)
       return created_baseposition
       
-  class Frame(object):
-    class FramePosition(object):
+  class _Frame(object):
+    class _FramePosition(object):
+      # <float> <float> <float> <float> <float> <float> 
       def __init__(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
-        self.pos_x = pos_x
-        self.pos_y = pos_y
-        self.pos_z = pos_z
-        self.ori_x = ori_x
-        self.ori_y = ori_y
-        self.ori_z = ori_z
+        self._pos_x = pos_x
+        self._pos_y = pos_y
+        self._pos_z = pos_z
+        self._ori_x = ori_x
+        self._ori_y = ori_y
+        self._ori_z = ori_z
+
+      def __repr__(self):
+        return "\t%f %f %f %f %f %f\n" % \
+          (self._pos_x, self._pos_y, self._pos_z, self._ori_x, self._ori_y, self._ori_z)
         
     def __init__(self, frameindex):
-      self.framepositions = [] # bone positions for frame
-      self.frameindex = frameindex
+      self._frameindex = frameindex
+      self._framepositions = [] # bone positions for frame
 
-    def new_frameposition(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
-      created_frameposition = FramePosition(pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
-      self.framepositions.append(created_frameposition)
+    def __repr__(self):
+      return "frame %i {\n%s}\n\n" % \
+        (self._frameindex, "".join( [ repr(element) for element in self._framepositions] ))
+
+    def FramePosition(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
+      created_frameposition = self._FramePosition(pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
+      self._framepositions.append(created_frameposition)
       return created_frameposition
 
 
-  def __init__(self):
-    self.framecount = 0 # frame count
-    self.framerate = 0 # frame rate
-    self.componentcount = 0 # parameters per frame used to compute the frame skeletons
+  def __init__(self, commandline, framerate):
+    super().__init__(commandline)
+    self._framerate = framerate # frame rate
     self.Hierarchy = self.Hierarchy()
     self.Bounds = self.Bounds()
     self.BaseFrame = self.BaseFrame()
-    self.frames = [] # list of frames
+    self._frames = [] # list of frames
 
-  def set_framecount(self, framecount):
-    self.framecount = framecount
+  def __repr__(self):
+    return "MD5Version %i\ncommandline \"%s\"\n\nnumFrames %i\nnumJoints %i\nframeRate %i\nnumAnimatedComponents %i\n\n%s%s%s%s" % \
+      (self._version, self._commandline, len(self._frames), len(self.Hierarchy), self._framerate, len(self.BaseFrame), \
+       repr(self.Hierarchy), \
+       repr(self.Bounds), \
+       repr(self.BaseFrame), \
+       "".join( [ repr(element) for element in self._frames ] ))
 
-  def set_framerate(self, framerate):
-    self.framerate = framerate
-
-  def set_componentcount(self, componentcount):
-    self.componentcount = componentcount
-
-  def new_frame(self, frameindex):
-    created_frame = self.Frame(frameindex)
-    self.frames.append(created_frame)
+  def Frame(self):
+    created_frame = self._Frame(len(self._frames))
+    self._frames.append(created_frame)
     return created_frame
 
+# unit test for MD5MeshFormat
+class MD5MeshFormatTest(object):
+  def __init__(self):
+    a = MD5MeshFormat('commandline from inline code')
+    a.Joints.Joint('name', -1, -0.01, -0.01, -0.01, -0.01, -0.01, -0.01)
+    new_mesh = a.Mesh("shader")
+    new_vert = new_mesh.Vert(1, 2, 3, 4, 5)
+    new_tri = new_mesh.Tri(0, 1, 2, 3)
+    new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+    print(a)
+
+# unit test for MD5AnimFormat
+class MD5AnimFormatTest(object):
+  def __init__(self):
+    b = MD5AnimFormat('commandline from inline code', 24)
+    b.Hierarchy.Joint('Legs', -1, 63, 0)
+    b.Bounds.Bound(1 ,2 ,3 ,4, 5 ,6)
+    b.BaseFrame.BasePosition(7, 8, 9, 1, 2, 3)
+    new_frame = b.Frame()
+    new_frame.FramePosition(7, 6, 5, 4, 3, 2)
+    print(b)
+  
 ################################################################################
 
 class Component(object):
@@ -1238,12 +1297,6 @@ def unregister():
 
 # running as external script
 if __name__ == "__main__":
-
-  a = MD5MeshFormat('commandline from inline code')
-  a.Joints.Joint('name', -1, -0.01, -0.01, -0.01, -0.01, -0.01, -0.01)
-  new_mesh = a.Mesh("shader")
-  new_vert = new_mesh.Vert(1, 2, 3, 4, 5)
-  new_tri = new_mesh.Tri(0, 1, 2, 3)
-  new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
-  print(a)
+  # MD5MeshFormatTest()
+  # MD5AnimFormatTest()
   console()
