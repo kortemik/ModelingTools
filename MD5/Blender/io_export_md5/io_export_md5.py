@@ -1,21 +1,18 @@
-# ***** BEGIN GPL LICENSE BLOCK ***** 
-# 
-# This program is free software; you can redistribute it and/or 
-# modify it under the terms of the GNU General Public License 
-# as published by the Free Software Foundation; either version 2 
-# of the License, or (at your option) any later version. 
-# 
-# This program is distributed in the hope that it will be useful, 
-# but WITHOUT ANY WARRANTY; without even the implied warranty of 
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
-# GNU General Public License for more details. 
-# 
-# You should have received a copy of the GNU General Public License 
-# along with this program; if not, write to the Free Software Foundation, 
-# Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
-# 
-# ***** END GPL LICENCE BLOCK *****
-#
+'''
+io_export_md5 Blender plugin to extract md5mesh and md5anim formats from .blend files
+Copyright (C) 2015 Mikko Kortelainen
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of  MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
 
 import struct,math,os,time,sys
 
@@ -122,7 +119,7 @@ class MD5MeshFormat(MD5Format):
         self._ori_z = ori_z
 
       def __str__(self):
-        return "\t\"%s\" %s ( %f %f %f ) ( %f %f %f )\n" % \
+        return "\t\"%s\" %i ( %f %f %f ) ( %f %f %f )\n" % \
           (self._name, self._parent, self._pos_x, self._pos_y, self._pos_z, self._ori_x, self._ori_y, self._ori_z)
 
     def __init__(self):
@@ -804,6 +801,128 @@ class MD5Settings(object):
     self.exportMode = exportMode
     self.scale = scale
 
+class BlenderExtractor(object):
+  class _StructureExtractor(object):
+    # operates only with bpy.data
+    class _ArmatureChildren(object):
+      def __init__(self, armature):
+        self.armature = armature
+        self.meshes = []
+
+      def __len__(self):
+        return len(self.meshes)  
+
+      def AddMesh(self, blenderobject):
+        self.meshes.append(blenderobject)
+      
+    def __init__(self):
+      # structure lookup can only be done via armature, as it seems to be singly linked
+      self.groups = []
+
+      # armature and child objects
+      for blender_object in bpy.data.objects:
+        if (blender_object.type == 'ARMATURE') and ( len(blender_object.children) > 0 ):
+          new_group = self._ArmatureChildren(blender_object)
+
+          # meshes animated by this armature are added so they can be in same MD5MeshFormat object
+          for child in blender_object.children:
+            if (child.type == 'MESH'):
+              new_group.AddMesh(child)
+            
+          # type check can leave them empty, aka no animated meshes by this skeleton
+          if len(new_group) > 0:
+            self.groups.append(new_group)
+
+      # unanimated objects
+      for blender_object in bpy.data.objects:
+        if (blender_object.type == 'MESH'):
+          # we search for objects with no related armature
+          animated = 0
+          for group in self.groups:
+            for grouped_mesh in group.meshes:
+              if grouped_mesh == blender_object:
+                # group was found
+                animated = 1
+                break
+          # not found
+          if animated == 0:
+            # we should call .lwo or .ase exporter for these
+            Typewriter.warn("Non-animated mesh found: "+blender_object.name)
+            new_group = self._ArmatureChildren(None)
+            new_group.AddMesh(blender_object)
+            self.groups.append(new_group)
+
+  class _DataExtractor(object):
+    class _HierarchyExtractor(object):
+
+      def create_joint(self, name, matrix, parent_id):
+        # local variable for transformations
+        self.matrix = matrix
+
+        pos1 = self.matrix.col[3][0]
+        pos2 = self.matrix.col[3][1]
+        pos3 = self.matrix.col[3][2]
+
+        bquat = self.matrix.to_quaternion()
+        bquat.normalize()
+        qx = bquat.x
+        qy = bquat.y
+        qz = bquat.z
+        if bquat.w > 0:
+          qx = -qx
+          qy = -qy
+          qz = -qz
+          
+        self.format_object.Joints.Joint(name, parent_id, pos1*self.scale, pos2*self.scale, pos3*self.scale, qx, qy, qz)
+        
+      # recursive bone extractor function
+      def recurse_bone(self, bone, parent = None, parent_id = None):
+        
+        # only recurse to attached bones
+        if (parent and not bone.parent.name == parent.name):
+          return
+        elif parent == None:
+          parent_id = -1
+        else:
+          # for our child bones parent is us
+          parent_id = parent_id + 1
+          
+        bone_matrix = self.armature.matrix_world * bone.matrix_local
+        
+        new_bone = self.create_joint(bone.name, bone_matrix, parent_id)
+
+        # attached bones
+        if( bone.children ):
+          for child in bone.children:
+            self.recurse_bone(child, bone, parent_id)
+
+      def __init__(self, format_object, armature, scale):
+
+        self.format_object = format_object
+        self.armature = armature
+        self.scale = scale
+        
+        for bone in self.armature.data.bones:
+          # search root bone
+          if( not bone.parent ): 
+            Typewriter.info( "Armature: "+self.armature.name+" root bone: " + bone.name )
+            self.recurse_bone(bone)
+
+    def __init__(self, format_object, structure_group, scale):
+      Typewriter.info(str(structure_group.armature)) # development printout TODO
+      Typewriter.info(str(structure_group.meshes)) # development printout TODO
+      
+      self._HierarchyExtractor(format_object, structure_group.armature, scale)
+
+    
+  def __init__(self):
+    self.structure = self._StructureExtractor()
+    
+    # development static one model style
+    format_object = MD5MeshFormat('testing extractor')
+    self._DataExtractor(format_object, self.structure.groups[0], 1)
+    print(str(format_object))
+  
 class MD5Save(object):
   def __init__(self, settings):
     self.settings = settings
@@ -1297,6 +1416,7 @@ def unregister():
 
 # running as external script
 if __name__ == "__main__":
-  MD5MeshFormatTest()
-  MD5AnimFormatTest()
+  # MD5MeshFormatTest()
+  # MD5AnimFormatTest()
+  c = BlenderExtractor()
   console()
