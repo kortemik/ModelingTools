@@ -121,7 +121,7 @@ class MD5MeshFormat(MD5Format):
         self._ori_y = ori_y
         self._ori_z = ori_z
 
-      def __repr__(self):
+      def __str__(self):
         return "\t\"%s\" %s ( %f %f %f ) ( %f %f %f )\n" % \
           (self._name, self._parent, self._pos_x, self._pos_y, self._pos_z, self._ori_x, self._ori_y, self._ori_z)
 
@@ -131,9 +131,9 @@ class MD5MeshFormat(MD5Format):
     def __len__(self):
       return len(self._joints)
 
-    def __repr__(self):
+    def __str__(self):
       return "joints {\n%s}\n\n" % \
-        ("".join( [ repr(element) for element in self._joints ] ))
+        ("".join( [ str(element) for element in self._joints ] ))
     
     def Joint(self, name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
       created_joint = self._Joint(name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
@@ -151,7 +151,7 @@ class MD5MeshFormat(MD5Format):
         self._weightstart = weightstart
         self._weightcount = weightcount
 
-      def __repr__(self):
+      def __str__(self):
         return "\tvert %i ( %f %f ) %i %i\n" % \
           (self._index, self._texture_x, self._texture_y, self._weightstart, self._weightcount)
 
@@ -164,7 +164,7 @@ class MD5MeshFormat(MD5Format):
         self._vert2 = vert2
         self._vert3 = vert3
         
-      def __repr__(self):
+      def __str__(self):
         return "\ttri %i %i %i %i\n" % \
           (self._index, self._vert1, self._vert2, self._vert3)
 
@@ -179,7 +179,7 @@ class MD5MeshFormat(MD5Format):
         self._pos_y = pos_y
         self._pos_z = pos_z
 
-      def __repr__(self):
+      def __str__(self):
         return "\tweight %i %i %f ( %f %f %f )\n" % \
           (self._index, self._rel_joint, self._bias, self._pos_x, self._pos_y, self._pos_z)
 
@@ -190,15 +190,15 @@ class MD5MeshFormat(MD5Format):
       self._tris = [] # list of tris
       self._weights = [] # list of weights
 
-    def __repr__(self):
+    def __str__(self):
       return "mesh {\n\tshader \"%s\"\n\n\tnumverts %i\n%s\n\tnumtris %i\n%s\n\tnumweights %i\n%s}\n" % \
         (self._shader,
          len(self._verts),
-         "".join( [ repr(element) for element in self._verts ] ),
+         "".join( [ str(element) for element in self._verts ] ),
          len(self._tris),
-         "".join( [ repr(element) for element in self._tris ] ),
+         "".join( [ str(element) for element in self._tris ] ),
          len(self._weights),
-         "".join( [ repr(element) for element in self._weights ] ))
+         "".join( [ str(element) for element in self._weights ] ))
 
 
     def Vert(self, index, texture_x, texture_y, weightstart, weightcount):
@@ -226,11 +226,11 @@ class MD5MeshFormat(MD5Format):
     self.Joints = self.Joints() # joints
     self._meshes = [] # list of meshes
 
-  def __repr__(self):
+  def __str__(self):
     return "MD5Version %i\ncommandline \"%s\"\n\nnumJoints %i\nnumMeshes %i\n\n%s%s" % \
       (self._version, self._commandline, len(self.Joints), len(self._meshes), \
-       repr(self.Joints), \
-       "".join( [ repr(element) for element in self._meshes ] ))
+       str(self.Joints), \
+       "".join( [ str(element) for element in self._meshes ] ))
 
 class MD5AnimFormat(MD5Format):
   class Hierarchy(object):
@@ -242,16 +242,16 @@ class MD5AnimFormat(MD5Format):
         self._flags = flags
         self._startindex = startindex
         
-      def __repr__(self):
+      def __str__(self):
         return "\t\"%s\" %s %i %i\n" % \
           (self._name, self._parent, self._flags, self._startindex)
         
     def __init__(self):
       self._joints = [] # joint hierarchy
 
-    def __repr__(self):
+    def __str__(self):
       return "hierarchy {\n%s}\n" % \
-        ("".join( [ repr(element) for element in self._joints ] ))
+        ("".join( [ str(element) for element in self._joints ] ))
 
     def __len__(self):
       return len(self._joints)
@@ -273,7 +273,7 @@ class MD5AnimFormat(MD5Format):
         self._max_y = max_y
         self._max_z = max_z
         
-      def __repr__(self):
+      def __str__(self):
         return "\t( %f %f %f ) ( %f %f %f )\n" % \
           (self._min_x, self._min_y, self._min_z, self._max_x, self._max_y, self._max_z)
 
@@ -281,9 +281,9 @@ class MD5AnimFormat(MD5Format):
     def __init__(self):
       self._bounds = [] # bounding boxes for each frame
 
-    def __repr__(self):
+    def __str__(self):
       return "bounds {\n%s}\n\n" % \
-        ("".join(repr(element) for element in self._bounds))
+        ("".join(str(element) for element in self._bounds))
 
     def Bound(self, min_x, min_y, min_z, max_x, max_y, max_z):
       created_bound = self._Bound(min_x, min_y, min_z, max_x, max_y, max_z)
@@ -302,16 +302,16 @@ class MD5AnimFormat(MD5Format):
         self._ori_y = ori_y
         self._ori_z = ori_z
 
-      def __repr__(self):
+      def __str__(self):
         return "\t( %f %f %f ) ( %f %f %f )\n" % \
           (self._pos_x, self._pos_y, self._pos_z, self._ori_x, self._ori_y, self._ori_z)
         
     def __init__(self):
       self._basepositions = [] # position and orientation of bones
       
-    def __repr__(self):
+    def __str__(self):
       return "baseframe {\n%s}\n\n" % \
-        ("".join([repr(element) for element in self._basepositions]))
+        ("".join([str(element) for element in self._basepositions]))
 
     def __len__(self):
       return len(self._basepositions)
@@ -332,7 +332,7 @@ class MD5AnimFormat(MD5Format):
         self._ori_y = ori_y
         self._ori_z = ori_z
 
-      def __repr__(self):
+      def __str__(self):
         return "\t%f %f %f %f %f %f\n" % \
           (self._pos_x, self._pos_y, self._pos_z, self._ori_x, self._ori_y, self._ori_z)
         
@@ -340,9 +340,9 @@ class MD5AnimFormat(MD5Format):
       self._frameindex = frameindex
       self._framepositions = [] # bone positions for frame
 
-    def __repr__(self):
+    def __str__(self):
       return "frame %i {\n%s}\n\n" % \
-        (self._frameindex, "".join( [ repr(element) for element in self._framepositions] ))
+        (self._frameindex, "".join( [ str(element) for element in self._framepositions] ))
 
     def FramePosition(self, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
       created_frameposition = self._FramePosition(pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
@@ -358,13 +358,13 @@ class MD5AnimFormat(MD5Format):
     self.BaseFrame = self.BaseFrame()
     self._frames = [] # list of frames
 
-  def __repr__(self):
+  def __str__(self):
     return "MD5Version %i\ncommandline \"%s\"\n\nnumFrames %i\nnumJoints %i\nframeRate %i\nnumAnimatedComponents %i\n\n%s%s%s%s" % \
       (self._version, self._commandline, len(self._frames), len(self.Hierarchy), self._framerate, len(self.BaseFrame), \
-       repr(self.Hierarchy), \
-       repr(self.Bounds), \
-       repr(self.BaseFrame), \
-       "".join( [ repr(element) for element in self._frames ] ))
+       str(self.Hierarchy), \
+       str(self.Bounds), \
+       str(self.BaseFrame), \
+       "".join( [ str(element) for element in self._frames ] ))
 
   def Frame(self):
     created_frame = self._Frame(len(self._frames))
@@ -1297,6 +1297,6 @@ def unregister():
 
 # running as external script
 if __name__ == "__main__":
-  # MD5MeshFormatTest()
-  # MD5AnimFormatTest()
+  MD5MeshFormatTest()
+  MD5AnimFormatTest()
   console()
