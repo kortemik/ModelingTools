@@ -853,7 +853,7 @@ class BlenderExtractor(object):
             self.groups.append(new_group)
 
   class _DataExtractor(object):
-    class _HierarchyExtractor(object):
+    class _JointExtractor(object):
 
       def create_joint(self, name, matrix, parent_id):
         # local variable for transformations
@@ -908,20 +908,36 @@ class BlenderExtractor(object):
             Typewriter.info( "Armature: "+self.armature.name+" root bone: " + bone.name )
             self.recurse_bone(bone)
 
+
+    class _MeshExtractor(object):
+
+      def __init__(self, format_object, mesh, scale):
+        self.format_object = format_object
+        self.mesh = mesh
+        self.scale = scale
+
     def __init__(self, format_object, structure_group, scale):
       Typewriter.info(str(structure_group.armature)) # development printout TODO
       Typewriter.info(str(structure_group.meshes)) # development printout TODO
-      
-      self._HierarchyExtractor(format_object, structure_group.armature, scale)
+
+      if (structure_group.armature != None):
+        self._JointExtractor(format_object, structure_group.armature, scale)
+
+      # group can not exist without a mesh, not checking
+      for mesh in structure_group.meshes:
+        self._MeshExtractor(format_object, mesh, scale)
 
     
   def __init__(self):
+
+    # extracting structure: armature and meshes that belong to it
     self.structure = self._StructureExtractor()
     
     # development static one model style
-    format_object = MD5MeshFormat('testing extractor')
-    self._DataExtractor(format_object, self.structure.groups[0], 1)
-    print(str(format_object))
+    for structure_group in self.structure.groups:
+      format_object = MD5MeshFormat('testing extractor')
+      self._DataExtractor(format_object, structure_group, 1)
+      print(str(format_object))
   
 class MD5Save(object):
   def __init__(self, settings):
