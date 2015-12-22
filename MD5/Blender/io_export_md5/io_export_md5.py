@@ -910,11 +910,177 @@ class BlenderExtractor(object):
 
 
     class _MeshExtractor(object):
+      class _WeightExtractor(object):
+        def __init__(self, mesh_vertice, polygon_vertex_index):
+          # for all vertices in vertex, find weights
+          influences = []
+          for j in range(len( self.mesh.data.vertices[polygon_vertex_index].groups )):
+            bonename = self.mesh.vertex_groups[ mesh_vertice.groups[j].group ].name
+            weight = mesh_vertice.groups[j].weight
+            inf = [bonename, weight]
+            influences.append( inf )
+            new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+          if not influences:
+            Typewriter.warn( "There is a vertex without attachment to a bone in mesh: no info here atm ")
 
-      def __init__(self, format_object, mesh, scale):
+          sum = 0.0
+          for bone_name, weight in influences:
+            sum += weight
+
+          for bone_name, weight in influences:
+            bone = self.BONES[bone_name] # no globals here
+            if sum != 0:
+              try:
+                influence_by_bone = weight / sum
+                new_influence = Component.Influence(bone, influence_by_bone)
+                vertex.influences.append(new_influence)
+                new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+                #return new_weight
+              except:
+                  continue
+            else: # we have a vertex that is probably not skinned. export anyway with full weight
+              try:
+                new_influence = Component.Influence(bone, weight)
+                vertex.influences.append(new_influence)
+                new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+                #return new_weight
+              except:
+                Typewriter.warn("Vertex without UV : "+str(bone)+" weight "+str(weight))
+                continue
+
+            #print( "vert " + str( face.vertices[vertice_index] ) + " has " + str(len( vertex.influences ) ) + " influences ")
+
+      class _VertExtractor(object):
+        def generate_vert(self, loc):
+          # todo fix data model to generate index automatically
+          # buf = "( %f %f )" % (self.u, self.v) loc[0] and loc[1] in case u v map
+          return new_mesh.Vert(0, loc[0], loc[1], (self.firstweightindx, len(self.influences)))
+
+
+        def __init__(self, vertices):
+          vertices = {} # dict
+
+          createVertexA = 0
+          createVertexB = 0
+          createVertexC = 0
+
+          # for each vertex in this face, add unique to vertices dictionary
+          # not to be confused with face.vertices[] which is list of numbers pointing to vertice count of it
+          face_vertices = []
+          for vertice_index in range(len(face.vertices)):
+            polygon_vertex_index = face.vertices[vertice_index]
+
+            # if collection already has this vertex
+            try:
+              vertex = vertices[polygon_vertex_index]
+            except ValueError:
+              # it did not have it
+              mesh_vertice = self.mesh.data.vertices[polygon_vertex_index]
+
+              w_matrix = self.mesh.matrix_world
+              coord = (mesh_vertice.co)*w_matrix # verify this
+              #vertex  = vertices[polygon_vertex_index] = Component.Vertex(submesh, coord)
+              vertex = vertices[polygon_vertex_index] = generate_vert(coord) # WE NEED WEIGHT startindex for this and count
+              createVertexA += 1
+
+
+            if not face.use_smooth:
+                # non-smoothed faces have different normals and MD5 format does
+                # not support vertex sharing for 2 vertices with different normals
+                # therefore vertex must be cloned
+                # these propably exist on the edges of smoothed areas ?
+
+                old_vertex = vertex
+                vertex = Component.Vertex(submesh, vertex.loc, normal)
+                createVertexB += 1
+                vertex.cloned_from = old_vertex
+                vertex.influences = old_vertex.influences
+                old_vertex.clones.append(vertex)
+
+            uv_textures = self.mesh.data.tessface_uv_textures
+            hasFaceUV = len(uv_textures) > 0 #borrowed from export_obj.py
+
+            if hasFaceUV: 
+              uv = [uv_textures.active.data[face.index].uv[i][0], uv_textures.active.data[face.index].uv[i][1]]
+              uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
+              if not vertex.maps: vertex.maps.append(Component.Map(*uv))
+              elif (vertex.maps[0].u != uv[0]) or (vertex.maps[0].v != uv[1]):
+                # This vertex can be shared for Blender, but not for MD5
+                # MD5 does not support vertex sharing for 2 vertices with
+                # different UV texture coodinates.
+                # => we must clone the vertex.
+
+                if len(vertex.clones > 0):
+                  for clone in vertex.clones:
+                    if (clone.maps[0].u == uv[0]) and (clone.maps[0].v == uv[1]):
+                      vertex = clone
+                      break
+                else:
+                  old_vertex = vertex
+                  vertex = Component.Vertex(submesh, vertex.loc, vertex.normal)
+                  createVertexC += 1
+                  vertex.cloned_from = old_vertex
+                  vertex.influences = old_vertex.influences
+                  vertex.maps.append(Component.Map(*uv))
+                  old_vertex.clones.append(vertex)
+
+              face_vertices.append(vertex)
+
+
+      class _TriExtractor(object):
+
+        def polygon_validate(self, polygon, material_index):
+          # a face has to have at least 3 vertices.
+          if (len(polygon.vertices) < 3) or \
+             (polygon.vertices[0] == polygon.vertices[1]) or \
+             (polygon.vertices[0] == polygon.vertices[2]) or \
+             (polygon.vertices[1] == polygon.vertices[2]):
+            Typewriter.warn( "Degenerate face: "+str(polygon))
+            return False
+          # check same material_index as rest of the mesh
+          elif polygon.material_index != material_index:
+            Typewriter.warn( "Invalid material on face: "+str(polygon))
+            return False
+          else:
+            return True
+
+        def __init__(self):
+
+          # Force recalculation of tessellation faces
+          self.mesh.data.update(calc_tessface=True)
+
+          faces = []
+          for polygon in self.mesh.data.polygons:
+            if self.polygon_validate(polygon, self.mesh.data.materials[0].name):
+              faces.append( polygon )
+
+          while faces:
+            # new mesh into format object
+            for face in faces:
+              # polygon vertice extractor
+              face_vertices = super._VertExtractor(face.vertices)
+
+              # Split faces with more than 3 vertices
+              for i in range(1, len(face.vertices) - 1):
+                # tri
+                self.new_mesh.Tri(face_vertices[0], face_vertices[i], face_vertices[i + 1])
+          #Typewriter.info( "Created verts at A " + str(createVertexA) + ", B " + str( createVertexB ) + ", C " + str( createVertexC ) )
+
+      def __init__(self, format_object, blender_mesh, export_scale):
         self.format_object = format_object
-        self.mesh = mesh
-        self.scale = scale
+        self.blender_mesh = blender_mesh
+        self.export_scale = export_scale
+        self.new_mesh = None
+
+        Typewriter.info( "Processing mesh: "+ self.blender_mesh.name )
+
+        if self.mesh.data.materials[0]:
+          self.new_mesh = self.format_object.Mesh(self.mesh.data.materials[0].name)
+          # tri extractor runs over all tris in mesh
+          self._TriExtractor()
+        else:
+          Typewriter.error( "No material found for mesh: " + self.blender_mesh.name + " skipping." )
+          
 
     def __init__(self, format_object, structure_group, scale):
       Typewriter.info(str(structure_group.armature)) # development printout TODO
@@ -934,10 +1100,13 @@ class BlenderExtractor(object):
     self.structure = self._StructureExtractor()
     
     # development static one model style
-    for structure_group in self.structure.groups:
-      format_object = MD5MeshFormat('testing extractor')
-      self._DataExtractor(format_object, structure_group, 1)
-      print(str(format_object))
+    if len(self.structure.groups) > 0:
+      for structure_group in self.structure.groups:
+        format_object = MD5MeshFormat('testing extractor')
+        self._DataExtractor(format_object, structure_group, 1)
+        print(str(format_object))
+    else:
+      Typewriter.error('No valid meshes to export')
   
 class MD5Save(object):
   def __init__(self, settings):
