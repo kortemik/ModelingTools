@@ -1,6 +1,6 @@
 '''
 io_export_md5 Blender plugin to extract md5mesh and md5anim formats from .blend files
-Copyright (C) 2015 Mikko Kortelainen
+Copyright (C) 2015 Mikko Kortelainen <kordex@gmail.com>
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -132,7 +132,7 @@ class MD5MeshFormat(MD5Format):
     def __str__(self):
       return "joints {\n%s}\n\n" % \
         ("".join( [ str(element) for element in self._joints ] ))
-    
+
     def Joint(self, name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z):
       created_joint = self._Joint(name, parent, pos_x, pos_y, pos_z, ori_x, ori_y, ori_z)
       self._joints.append(created_joint)
@@ -855,7 +855,8 @@ class BlenderExtractor(object):
             Typewriter.warn("Non-animated mesh found: "+blender_object.name)
             new_group = self._ArmatureChildren(None)
             new_group.AddMesh(blender_object)
-            self.groups.append(new_group)
+            # MD5 cant do these
+            #self.groups.append(new_group)
 
   class _DataExtractor(object):
     class _JointExtractor(object):
@@ -886,26 +887,34 @@ class BlenderExtractor(object):
         # only recurse to attached bones
         if (parent and not bone.parent.name == parent.name):
           return
-        elif parent == None:
+        elif parent is None:
           parent_id = -1
-        else:
-          # for our child bones parent is us
-          parent_id = parent_id + 1
+
+        our_id = self._joint_index
+        self._joint_index = self._joint_index + 1
           
         bone_matrix = self.armature.matrix_world * bone.matrix_local
         
-        new_bone = self.create_joint(bone.name, bone_matrix, parent_id)
+        self.create_joint(bone.name, bone_matrix, parent_id)
+        self._bone_dict[bone.name] = our_id
 
         # attached bones
         if( bone.children ):
           for child in bone.children:
-            self.recurse_bone(child, bone, parent_id)
+            self.recurse_bone(child, bone, our_id)
+
+      def get_bone_dict(self):
+        return self._bone_dict
+
 
       def __init__(self, format_object, armature, scale):
 
         self.format_object = format_object
         self.armature = armature
         self.scale = scale
+        self._joint_index = 0
+        # bone dictionary is for weight calculations to find bone by name
+        self._bone_dict = {}
         
         for bone in self.armature.data.bones:
           # search root bone
@@ -914,52 +923,75 @@ class BlenderExtractor(object):
             self.recurse_bone(bone)
 
 
+
     class _MeshExtractor(object):
-      class _WeightExtractor(object):
-        def __init__(self, mesh_vertice, polygon_vertex_index):
-          # for all vertices in vertex, find weights
-          influences = []
-          for j in range(len( self.mesh.data.vertices[polygon_vertex_index].groups )):
-            bonename = self.mesh.vertex_groups[ mesh_vertice.groups[j].group ].name
-            weight = mesh_vertice.groups[j].weight
-            inf = [bonename, weight]
-            influences.append( inf )
-          if not influences:
-            Typewriter.warn( "There is a vertex without attachment to a bone in mesh: no info here atm ")
-
-          sum = 0.0
-          for bone_name, weight in influences:
-            sum += weight
-
-          for bone_name, weight in influences:
-            bone = self.BONES[bone_name] # no globals here
-            if sum != 0:
-              try:
-                influence_by_bone = weight / sum
-                new_influence = Component.Influence(bone, influence_by_bone)
-                vertex.influences.append(new_influence)
-                new_weight = new_mesh.Weight(2, 3, 4, 5, 6)
-                #return new_weight
-              except:
-                  continue
-            else: # we have a vertex that is probably not skinned. export anyway with full weight
-              try:
-                new_influence = Component.Influence(bone, weight)
-                vertex.influences.append(new_influence)
-                new_weight = new_mesh.Weight(2, 3, 4, 5, 6)
-                #return new_weight
-              except:
-                Typewriter.warn("Vertex without UV : "+str(bone)+" weight "+str(weight))
-                continue
-
-            #print( "vert " + str( face.vertices[vertice_index] ) + " has " + str(len( vertex.influences ) ) + " influences ")
-
-
 
       class _TriExtractor(object):
 
         class _VertExtractor(object):
 
+          class _WeightExtractor(object):
+
+            def generateweights(self):
+              self.firstweightindx = self.submesh.next_weight_id
+              for influence in self.influences:
+                weightindx = self.submesh.next_weight_id
+                self.submesh.next_weight_id += 1
+                newweight = Component.Weight(influence.bone, influence.weight, self, weightindx, self.loc[0], self.loc[1], self.loc[2])
+                self.submesh.weights.append(newweight)
+                self.weights.append(newweight)
+
+                
+            def _create_weight(self, bone_index, bias, pos_x, pos_y, pos_z):
+              new_weight = self._new_mesh.Weight(bone_index, bias, pos_x, pos_y, pos_z)
+              if self.firstweight is None:
+                self.firstweight = new_weight.index
+
+              self.weightcount = self.weightcount + 1
+
+
+            
+            def __init__(self, new_mesh, blender_mesh, mesh_vertex, vertex_index, bone_dict):
+              self._new_mesh = new_mesh
+              self._blender_mesh = blender_mesh
+              self._mesh_vertex = mesh_vertex
+              self._vertex_index = vertex_index
+              self._bone_dict = bone_dict
+              self.firstweight = None
+              self.weightcount = 0
+
+              # for all vertices, find weights
+              influences = []
+              vertice_groups = self._blender_mesh.data.vertices[self._vertex_index].groups
+              for j in range(len(vertice_groups)):
+                bonename = self._blender_mesh.vertex_groups[ self._mesh_vertex.groups[j].group ].name
+                weight = self._mesh_vertex.groups[j].weight
+                inf = [bonename, weight]
+                influences.append( inf )
+              if not influences:
+                Typewriter.warn( "There is a vertex without attachment to a bone in mesh: no info here atm ")
+
+              # total of all weights
+              sum = 0.0
+              for bone_name, weight in influences:
+                sum += weight
+
+              loc_vector = mesh_vertex.co
+              
+              w_matrix = self._blender_mesh.matrix_world
+              coord = loc_vector*w_matrix # verify this
+                
+              for bone_name, weight in influences:
+                bone_index = self._bone_dict[bone_name]
+                if sum != 0:
+                  # influence_by_bone should total 1.0
+                  influence_by_bone = weight / sum
+                  self._create_weight(bone_index, influence_by_bone, coord[0], coord[1], coord[2])
+                else:
+                  # we have a vertex that is probably not skinned. export anyway with full weight
+                  self._create_weight(bone_index, weight, coord[0], coord[1], coord[2])
+                  Typewriter.warn("Vertex without weight paint: %i" % vertex_index)
+                    
           class _TempVert(object):
             def __init__(self, texture_x, texture_y, loc_z):
               self.texture_x = texture_x
@@ -1010,13 +1042,13 @@ class BlenderExtractor(object):
 
               print("    Vertex: %d" % vertex_index) # development printout
 
-              loc_vector = self._blender_mesh.data.vertices[vertex_index].co
+              vertex = self._blender_mesh.data.vertices[vertex_index]
+              loc_vector = vertex.co
 
-              # TODO weight calculation here
-              #weightstart, weightcount = self._WeightExtractor(loc_vector)
-              # using dummy for now
-              weightstart = 0
-              weightcount = 1
+              weightextractor = self._WeightExtractor(self._new_mesh, self._blender_mesh, vertex, vertex_index, self._bone_dict)
+
+              weightstart = weightextractor.firstweight
+              weightcount = weightextractor.weightcount
 
               try:
                 # vertex has uv
@@ -1030,15 +1062,14 @@ class BlenderExtractor(object):
               temp_vert = self._TempVert(loc_vector[0], loc_vector[1], loc_vector[2])
 
               if self._temp_vert_uniq(vertex_index, temp_vert):
-                # if unique
-                # new md5 vertex
+                # if unique, create new md5 vertex
                 w_matrix = self._blender_mesh.matrix_world
                 coord = loc_vector*w_matrix # verify this
                 md5vert = self._new_mesh.Vert(coord[0], coord[1], weightstart, weightcount)
                 temp_vert.md5index = md5vert.index
                 self._temp_vert_add(vertex_index, temp_vert)
               else:
-                # existing md5 vertex found
+                # existing md5 vertex found, use it
                 temp_vert = self._temp_vert_get(vertex_index, temp_vert)
 
               # add this to list of polygon faces to be returned to form a tri
@@ -1046,12 +1077,12 @@ class BlenderExtractor(object):
 
             return polygons_vertices
 
-          def __init__(self, new_mesh, blender_mesh):
+          def __init__(self, new_mesh, blender_mesh, bone_dict):
             self._new_mesh = new_mesh
             self._blender_mesh = blender_mesh
+            self._bone_dict = bone_dict
             # key vertex_index of mesh
-            # value list type, containing objects of type:
-            # u-cord, v-cord, first_weight, weightcount
+            # value list type, containing _TempVert objects 
             # this allows us to see if we already have this
             # md5 vert created
             self._vertices = {}
@@ -1073,10 +1104,11 @@ class BlenderExtractor(object):
           else:
             return True
 
-        def __init__(self, new_mesh, blender_mesh):
+        def __init__(self, new_mesh, blender_mesh, bone_dict):
           self._new_mesh = new_mesh
           self._blender_mesh = blender_mesh
-          self._vertextractor = self._VertExtractor(self._new_mesh, self._blender_mesh)
+          self._bone_dict = bone_dict
+          self._vertextractor = self._VertExtractor(self._new_mesh, self._blender_mesh, self._bone_dict)
           '''
           for polygon in self.mesh.data.polygons:
             print("Polygon index: %d, length: %d" % (polygon.index, polygon.loop_total))
@@ -1087,14 +1119,16 @@ class BlenderExtractor(object):
               face_vertices = self._vertextractor.extract(polygon)
 
               # Split faces with more than 3 vertices
-              for i in range(1, len(polygon.vertices) - 1):
+              #for i in range(1, len(polygon.vertices) - 1):
+              for i in range(1, polygon.loop_total - 1):
                 # tri
-                self._new_mesh.Tri(face_vertices[0], face_vertices[i], face_vertices[i + 1])
+                self._new_mesh.Tri(face_vertices[0], face_vertices[i + 1], face_vertices[i])
 
-      def __init__(self, format_object, blender_mesh, export_scale):
+      def __init__(self, format_object, blender_mesh, export_scale, bone_dict):
         self._format_object = format_object
         self._blender_mesh = blender_mesh
         self._export_scale = export_scale
+        self._bone_dict = bone_dict
         self._new_mesh = None
 
         Typewriter.info( "Processing mesh: "+ self._blender_mesh.name )
@@ -1102,7 +1136,7 @@ class BlenderExtractor(object):
         if self._blender_mesh.data.materials[0]:
           self._new_mesh = self._format_object.Mesh(self._blender_mesh.data.materials[0].name)
           # tri extractor runs over all tris in mesh
-          self._TriExtractor(self._new_mesh, self._blender_mesh)
+          self._TriExtractor(self._new_mesh, self._blender_mesh, self._bone_dict)
         else:
           Typewriter.error( "No material found for mesh: " + self._blender_mesh.name + " skipping." )
           
@@ -1112,11 +1146,12 @@ class BlenderExtractor(object):
       Typewriter.info(str(structure_group.meshes)) # development printout TODO
 
       if (structure_group.armature != None):
-        self._JointExtractor(format_object, structure_group.armature, scale)
+        joint_extractor = self._JointExtractor(format_object, structure_group.armature, scale)
+        bone_dict = joint_extractor.get_bone_dict()
 
       # group can not exist without a mesh, not checking
       for mesh in structure_group.meshes:
-        self._MeshExtractor(format_object, mesh, scale)
+        self._MeshExtractor(format_object, mesh, scale, bone_dict)
 
     
   def __init__(self):
@@ -1130,6 +1165,9 @@ class BlenderExtractor(object):
         format_object = MD5MeshFormat('testing extractor')
         self._DataExtractor(format_object, structure_group, 1)
         print(str(format_object))
+        file = open('format_object.md5mesh', 'w')
+        file.write(str(format_object))
+        file.close()
     else:
       Typewriter.error('No valid meshes to export')
   
