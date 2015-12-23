@@ -14,7 +14,8 @@ You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import struct,math,os,time,sys
+import os
+import sys
 
 import mathutils
 import bpy
@@ -142,7 +143,7 @@ class MD5MeshFormat(MD5Format):
     class _Vert(object):
       # vert vertIndex ( s t ) startWeight countWeight
       def __init__(self, index, texture_x, texture_y, weightstart, weightcount):
-        self._index = index
+        self.index = index
         self._texture_x = texture_x # u, s
         self._texture_y = texture_y # v, t
         self._weightstart = weightstart
@@ -150,26 +151,26 @@ class MD5MeshFormat(MD5Format):
 
       def __str__(self):
         return "\tvert %i ( %f %f ) %i %i\n" % \
-          (self._index, self._texture_x, self._texture_y, self._weightstart, self._weightcount)
+          (self.index, self._texture_x, self._texture_y, self._weightstart, self._weightcount)
 
 
     class _Tri(object):
       # tri triIndex vertIndex[0] vertIndex[1] vertIndex[2]
       def __init__(self, index, vert1, vert2, vert3):
-        self._index = index
+        self.index = index
         self._vert1 = vert1
         self._vert2 = vert2
         self._vert3 = vert3
         
       def __str__(self):
         return "\ttri %i %i %i %i\n" % \
-          (self._index, self._vert1, self._vert2, self._vert3)
+          (self.index, self._vert1, self._vert2, self._vert3)
 
 
     class _Weight(object):
       # weight weightIndex joint bias ( pos.x pos.y pos.z )
       def __init__(self, index, joint, bias, pos_x, pos_y, pos_z):
-        self._index = index
+        self.index = index
         self._rel_joint = joint
         self._bias = bias
         self._pos_x = pos_x
@@ -178,7 +179,7 @@ class MD5MeshFormat(MD5Format):
 
       def __str__(self):
         return "\tweight %i %i %f ( %f %f %f )\n" % \
-          (self._index, self._rel_joint, self._bias, self._pos_x, self._pos_y, self._pos_z)
+          (self.index, self._rel_joint, self._bias, self._pos_x, self._pos_y, self._pos_z)
 
 
     def __init__(self, shader):
@@ -197,19 +198,20 @@ class MD5MeshFormat(MD5Format):
          len(self._weights),
          "".join( [ str(element) for element in self._weights ] ))
 
-
-    def Vert(self, index, texture_x, texture_y, weightstart, weightcount):
-      created_vert = self._Vert(index, texture_x, texture_y, weightstart, weightcount)
+    def Vert(self, texture_x, texture_y, weightstart, weightcount):
+      created_vert = self._Vert(len(self._verts), texture_x, texture_y, weightstart, weightcount)
       self._verts.append(created_vert)
       return created_vert
 
-    def Tri(self, index, vert1, vert2, vert3):
-      created_tri = self._Tri(index, vert1, vert2, vert3)
+
+    def Tri(self, vert1, vert2, vert3):
+      created_tri = self._Tri(len(self._tris), vert1, vert2, vert3)
       self._tris.append(created_tri)
       return created_tri
 
-    def Weight(self, index, joint, bias, pos_x, pos_y, pos_z):
-      created_weight = self._Weight(index, joint, bias, pos_x, pos_y, pos_z)
+
+    def Weight(self, joint, bias, pos_x, pos_y, pos_z):
+      created_weight = self._Weight(len(self._weights), joint, bias, pos_x, pos_y, pos_z)
       self._weights.append(created_weight)
       return created_weight
 
@@ -374,9 +376,12 @@ class MD5MeshFormatTest(object):
     a = MD5MeshFormat('commandline from inline code')
     a.Joints.Joint('name', -1, -0.01, -0.01, -0.01, -0.01, -0.01, -0.01)
     new_mesh = a.Mesh("shader")
-    new_vert = new_mesh.Vert(1, 2, 3, 4, 5)
-    new_tri = new_mesh.Tri(0, 1, 2, 3)
-    new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+    new_weight = new_mesh.Weight(-1, 1, 4, 5, 6)
+    new_vert1 = new_mesh.Vert(0, 0, new_weight.index, 1)
+    new_vert2 = new_mesh.Vert(0, 100, new_weight.index, 1)
+    new_vert3 = new_mesh.Vert(100, 0, new_weight.index, 1)
+    new_mesh.Tri(new_vert1.index, new_vert2.index, new_vert3.index)
+
     print(a)
 
 # unit test for MD5AnimFormat
@@ -919,7 +924,6 @@ class BlenderExtractor(object):
             weight = mesh_vertice.groups[j].weight
             inf = [bonename, weight]
             influences.append( inf )
-            new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
           if not influences:
             Typewriter.warn( "There is a vertex without attachment to a bone in mesh: no info here atm ")
 
@@ -934,7 +938,7 @@ class BlenderExtractor(object):
                 influence_by_bone = weight / sum
                 new_influence = Component.Influence(bone, influence_by_bone)
                 vertex.influences.append(new_influence)
-                new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+                new_weight = new_mesh.Weight(2, 3, 4, 5, 6)
                 #return new_weight
               except:
                   continue
@@ -942,7 +946,7 @@ class BlenderExtractor(object):
               try:
                 new_influence = Component.Influence(bone, weight)
                 vertex.influences.append(new_influence)
-                new_weight = new_mesh.Weight(1, 2, 3, 4, 5, 6)
+                new_weight = new_mesh.Weight(2, 3, 4, 5, 6)
                 #return new_weight
               except:
                 Typewriter.warn("Vertex without UV : "+str(bone)+" weight "+str(weight))
@@ -950,84 +954,108 @@ class BlenderExtractor(object):
 
             #print( "vert " + str( face.vertices[vertice_index] ) + " has " + str(len( vertex.influences ) ) + " influences ")
 
-      class _VertExtractor(object):
-        def generate_vert(self, loc):
-          # todo fix data model to generate index automatically
-          # buf = "( %f %f )" % (self.u, self.v) loc[0] and loc[1] in case u v map
-          return new_mesh.Vert(0, loc[0], loc[1], (self.firstweightindx, len(self.influences)))
-
-
-        def __init__(self, vertices):
-          vertices = {} # dict
-
-          createVertexA = 0
-          createVertexB = 0
-          createVertexC = 0
-
-          # for each vertex in this face, add unique to vertices dictionary
-          # not to be confused with face.vertices[] which is list of numbers pointing to vertice count of it
-          face_vertices = []
-          for vertice_index in range(len(face.vertices)):
-            polygon_vertex_index = face.vertices[vertice_index]
-
-            # if collection already has this vertex
-            try:
-              vertex = vertices[polygon_vertex_index]
-            except ValueError:
-              # it did not have it
-              mesh_vertice = self.mesh.data.vertices[polygon_vertex_index]
-
-              w_matrix = self.mesh.matrix_world
-              coord = (mesh_vertice.co)*w_matrix # verify this
-              #vertex  = vertices[polygon_vertex_index] = Component.Vertex(submesh, coord)
-              vertex = vertices[polygon_vertex_index] = generate_vert(coord) # WE NEED WEIGHT startindex for this and count
-              createVertexA += 1
-
-
-            if not face.use_smooth:
-                # non-smoothed faces have different normals and MD5 format does
-                # not support vertex sharing for 2 vertices with different normals
-                # therefore vertex must be cloned
-                # these propably exist on the edges of smoothed areas ?
-
-                old_vertex = vertex
-                vertex = Component.Vertex(submesh, vertex.loc, normal)
-                createVertexB += 1
-                vertex.cloned_from = old_vertex
-                vertex.influences = old_vertex.influences
-                old_vertex.clones.append(vertex)
-
-            uv_textures = self.mesh.data.tessface_uv_textures
-            hasFaceUV = len(uv_textures) > 0 #borrowed from export_obj.py
-
-            if hasFaceUV: 
-              uv = [uv_textures.active.data[face.index].uv[i][0], uv_textures.active.data[face.index].uv[i][1]]
-              uv[1] = 1.0 - uv[1]  # should we flip Y? yes, new in Blender 2.5x
-              if not vertex.maps: vertex.maps.append(Component.Map(*uv))
-              elif (vertex.maps[0].u != uv[0]) or (vertex.maps[0].v != uv[1]):
-                # This vertex can be shared for Blender, but not for MD5
-                # MD5 does not support vertex sharing for 2 vertices with
-                # different UV texture coodinates.
-                # => we must clone the vertex.
-
-                if len(vertex.clones > 0):
-                  for clone in vertex.clones:
-                    if (clone.maps[0].u == uv[0]) and (clone.maps[0].v == uv[1]):
-                      vertex = clone
-                      break
-                else:
-                  old_vertex = vertex
-                  vertex = Component.Vertex(submesh, vertex.loc, vertex.normal)
-                  createVertexC += 1
-                  vertex.cloned_from = old_vertex
-                  vertex.influences = old_vertex.influences
-                  vertex.maps.append(Component.Map(*uv))
-                  old_vertex.clones.append(vertex)
-
-              face_vertices.append(vertex)
 
 
       class _TriExtractor(object):
+
+        class _VertExtractor(object):
+
+          class _TempVert(object):
+            def __init__(self, texture_x, texture_y, loc_z):
+              self.texture_x = texture_x
+              self.texture_y = texture_y
+              self.loc_z = loc_z
+              self.md5index = None
+
+          def _temp_vert_uniq(self, vertex_index, temp_vert):
+            try:
+              vertex_instances = self._vertices[vertex_index]
+            except KeyError:
+              # definitely uniq, we did not even find a vertex_index
+              return True
+
+            for vertex in vertex_instances:
+              if (vertex.texture_y == temp_vert.texture_y) and \
+                 (vertex.texture_x == temp_vert.texture_x) and \
+                 (vertex.loc_z == temp_vert.loc_z):
+                return False
+            return True
+
+          def _temp_vert_get(self, vertex_index, temp_vert):
+            try:
+              vertex_instances = self._vertices[vertex_index]
+            except KeyError:
+              #  we did not even find a vertex_index
+              return None
+
+            for vertex in vertex_instances:
+              if (vertex.texture_y == temp_vert.texture_y) and \
+                 (vertex.texture_x == temp_vert.texture_x) and \
+                 (vertex.loc_z == temp_vert.loc_z):
+                return vertex
+            return None
+
+          def _temp_vert_add(self, vertex_index, temp_vert):
+            try:
+              vertex_instances = self._vertices[vertex_index]
+            except KeyError:
+              self._vertices[vertex_index] = []
+            vertex_instances = self._vertices[vertex_index]
+            vertex_instances.append(temp_vert)
+
+          def extract(self, polygon):
+            polygons_vertices = []
+            for loop_index in polygon.loop_indices:
+              vertex_index = self._blender_mesh.data.loops[loop_index].vertex_index
+
+              print("    Vertex: %d" % vertex_index) # development printout
+
+              loc_vector = self._blender_mesh.data.vertices[vertex_index].co
+
+              # TODO weight calculation here
+              #weightstart, weightcount = self._WeightExtractor(loc_vector)
+              # using dummy for now
+              weightstart = 0
+              weightcount = 1
+
+              try:
+                # vertex has uv
+                loc_vector = self._blender_mesh.data.uv_layers.active.data[loop_index].uv
+                print("    UV: %r" % loc_vector) # development printout
+              except AttributeError:
+                # vertex does not have uv
+                Typewriter.warn("vertex without uv: %i" % vertex_index)
+
+              print(loc_vector)
+              temp_vert = self._TempVert(loc_vector[0], loc_vector[1], loc_vector[2])
+
+              if self._temp_vert_uniq(vertex_index, temp_vert):
+                # if unique
+                # new md5 vertex
+                w_matrix = self._blender_mesh.matrix_world
+                coord = loc_vector*w_matrix # verify this
+                md5vert = self._new_mesh.Vert(coord[0], coord[1], weightstart, weightcount)
+                temp_vert.md5index = md5vert.index
+                self._temp_vert_add(vertex_index, temp_vert)
+              else:
+                # existing md5 vertex found
+                temp_vert = self._temp_vert_get(vertex_index, temp_vert)
+
+              # add this to list of polygon faces to be returned to form a tri
+              polygons_vertices.append(temp_vert.md5index)
+
+            return polygons_vertices
+
+          def __init__(self, new_mesh, blender_mesh):
+            self._new_mesh = new_mesh
+            self._blender_mesh = blender_mesh
+            # key vertex_index of mesh
+            # value list type, containing objects of type:
+            # u-cord, v-cord, first_weight, weightcount
+            # this allows us to see if we already have this
+            # md5 vert created
+            self._vertices = {}
+
 
         def polygon_validate(self, polygon, material_index):
           # a face has to have at least 3 vertices.
@@ -1039,47 +1067,44 @@ class BlenderExtractor(object):
             return False
           # check same material_index as rest of the mesh
           elif polygon.material_index != material_index:
-            Typewriter.warn( "Invalid material on face: "+str(polygon))
-            return False
+            Typewriter.warn( "Invalid material on polygon: %i" % polygon.index)
+            # very temp development skip here!
+            return True
           else:
             return True
 
-        def __init__(self):
-
-          # Force recalculation of tessellation faces
-          self.mesh.data.update(calc_tessface=True)
-
-          faces = []
+        def __init__(self, new_mesh, blender_mesh):
+          self._new_mesh = new_mesh
+          self._blender_mesh = blender_mesh
+          self._vertextractor = self._VertExtractor(self._new_mesh, self._blender_mesh)
+          '''
           for polygon in self.mesh.data.polygons:
-            if self.polygon_validate(polygon, self.mesh.data.materials[0].name):
-              faces.append( polygon )
-
-          while faces:
-            # new mesh into format object
-            for face in faces:
+            print("Polygon index: %d, length: %d" % (polygon.index, polygon.loop_total))
+          '''
+          for polygon in self._blender_mesh.data.polygons:
+            if self.polygon_validate(polygon, self._blender_mesh.data.materials[0].name):
               # polygon vertice extractor
-              face_vertices = super._VertExtractor(face.vertices)
+              face_vertices = self._vertextractor.extract(polygon)
 
               # Split faces with more than 3 vertices
-              for i in range(1, len(face.vertices) - 1):
+              for i in range(1, len(polygon.vertices) - 1):
                 # tri
-                self.new_mesh.Tri(face_vertices[0], face_vertices[i], face_vertices[i + 1])
-          #Typewriter.info( "Created verts at A " + str(createVertexA) + ", B " + str( createVertexB ) + ", C " + str( createVertexC ) )
+                self._new_mesh.Tri(face_vertices[0], face_vertices[i], face_vertices[i + 1])
 
       def __init__(self, format_object, blender_mesh, export_scale):
-        self.format_object = format_object
-        self.blender_mesh = blender_mesh
-        self.export_scale = export_scale
-        self.new_mesh = None
+        self._format_object = format_object
+        self._blender_mesh = blender_mesh
+        self._export_scale = export_scale
+        self._new_mesh = None
 
-        Typewriter.info( "Processing mesh: "+ self.blender_mesh.name )
+        Typewriter.info( "Processing mesh: "+ self._blender_mesh.name )
 
-        if self.mesh.data.materials[0]:
-          self.new_mesh = self.format_object.Mesh(self.mesh.data.materials[0].name)
+        if self._blender_mesh.data.materials[0]:
+          self._new_mesh = self._format_object.Mesh(self._blender_mesh.data.materials[0].name)
           # tri extractor runs over all tris in mesh
-          self._TriExtractor()
+          self._TriExtractor(self._new_mesh, self._blender_mesh)
         else:
-          Typewriter.error( "No material found for mesh: " + self.blender_mesh.name + " skipping." )
+          Typewriter.error( "No material found for mesh: " + self._blender_mesh.name + " skipping." )
           
 
     def __init__(self, format_object, structure_group, scale):
@@ -1601,7 +1626,7 @@ def unregister():
 
 # running as external script
 if __name__ == "__main__":
-  # MD5MeshFormatTest()
-  # MD5AnimFormatTest()
+  #MD5MeshFormatTest()
+  #MD5AnimFormatTest()
   c = BlenderExtractor()
   console()
