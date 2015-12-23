@@ -570,8 +570,11 @@ class Component(object):
       self.weight = weight
       self.vertex = vertex
       self.indx = weightindx
+
       invbonematrix = self.bone.matrix.transposed().inverted()
       self.x, self.y, self.z = mathutils.Vector((x, y, z))*invbonematrix
+
+      #print("created weight with oldd \nx: %f, y: %f, z: %f after matrix translation\nx: %f, y: %f, z: %f" % (x, y, z, self.x, self.y, self.z))
 
     def to_md5mesh(self):
       buf = "%i %f ( %f %f %f )" % (self.bone.id, self.weight, self.x*scale, self.y*scale, self.z*scale)
@@ -896,7 +899,7 @@ class BlenderExtractor(object):
         bone_matrix = self.armature.matrix_world * bone.matrix_local
         
         self.create_joint(bone.name, bone_matrix, parent_id)
-        self._bone_dict[bone.name] = our_id
+        self._bone_dict[bone.name] = [our_id, bone_matrix]
 
         # attached bones
         if( bone.children ):
@@ -932,18 +935,16 @@ class BlenderExtractor(object):
 
           class _WeightExtractor(object):
 
-            def generateweights(self):
-              self.firstweightindx = self.submesh.next_weight_id
-              for influence in self.influences:
-                weightindx = self.submesh.next_weight_id
-                self.submesh.next_weight_id += 1
-                newweight = Component.Weight(influence.bone, influence.weight, self, weightindx, self.loc[0], self.loc[1], self.loc[2])
-                self.submesh.weights.append(newweight)
-                self.weights.append(newweight)
+            def _create_weight(self, bone_name, bias, pos_x, pos_y, pos_z):
+              bone_index = self._bone_dict[bone_name][0]
 
-                
-            def _create_weight(self, bone_index, bias, pos_x, pos_y, pos_z):
-              new_weight = self._new_mesh.Weight(bone_index, bias, pos_x, pos_y, pos_z)
+
+              bone_matrix = self._bone_dict[bone_name][1]
+              inv_trans_bone_matrix = bone_matrix.transposed().inverted()
+              trl_pos_x, trl_pos_y, trl_pos_z = mathutils.Vector((pos_x, pos_y, pos_z))*inv_trans_bone_matrix
+
+              new_weight = self._new_mesh.Weight(bone_index, bias, trl_pos_x, trl_pos_y, trl_pos_z)
+              #print("created weight with orig \nx: %f, y: %f, z: %f after matrix translation\nx: %f, y: %f, z: %f" % (pos_x, pos_y, pos_z, trl_pos_x, trl_pos_y, trl_pos_z))
               if self.firstweight is None:
                 self.firstweight = new_weight.index
 
@@ -982,14 +983,13 @@ class BlenderExtractor(object):
               coord = loc_vector*w_matrix # verify this
                 
               for bone_name, weight in influences:
-                bone_index = self._bone_dict[bone_name]
                 if sum != 0:
                   # influence_by_bone should total 1.0
                   influence_by_bone = weight / sum
-                  self._create_weight(bone_index, influence_by_bone, coord[0], coord[1], coord[2])
+                  self._create_weight(bone_name, influence_by_bone, coord[0], coord[1], coord[2])
                 else:
                   # we have a vertex that is probably not skinned. export anyway with full weight
-                  self._create_weight(bone_index, weight, coord[0], coord[1], coord[2])
+                  self._create_weight(bone_name, weight, coord[0], coord[1], coord[2])
                   Typewriter.warn("Vertex without weight paint: %i" % vertex_index)
                     
           class _TempVert(object):
@@ -1045,11 +1045,6 @@ class BlenderExtractor(object):
               vertex = self._blender_mesh.data.vertices[vertex_index]
               loc_vector = vertex.co
 
-              weightextractor = self._WeightExtractor(self._new_mesh, self._blender_mesh, vertex, vertex_index, self._bone_dict)
-
-              weightstart = weightextractor.firstweight
-              weightcount = weightextractor.weightcount
-
               try:
                 # vertex has uv
                 loc_vector = self._blender_mesh.data.uv_layers.active.data[loop_index].uv
@@ -1065,6 +1060,11 @@ class BlenderExtractor(object):
                 # if unique, create new md5 vertex
                 w_matrix = self._blender_mesh.matrix_world
                 coord = loc_vector*w_matrix # verify this
+
+                weightextractor = self._WeightExtractor(self._new_mesh, self._blender_mesh, vertex, vertex_index, self._bone_dict)
+                weightstart = weightextractor.firstweight
+                weightcount = weightextractor.weightcount
+
                 md5vert = self._new_mesh.Vert(coord[0], coord[1], weightstart, weightcount)
                 temp_vert.md5index = md5vert.index
                 self._temp_vert_add(vertex_index, temp_vert)
