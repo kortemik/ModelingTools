@@ -1,6 +1,6 @@
 '''
 io_export_md5 Blender plugin to extract md5mesh and md5anim formats from .blend files
-Copyright (C) 2015 Mikko Kortelainen <kordex@gmail.com>
+Copyright (C) 2015 Mikko Kortelainen <mikko.kortelainen@fail-safe.net>
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -16,6 +16,7 @@ this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
+import re
 
 import mathutils
 import bpy
@@ -25,42 +26,20 @@ from bpy_extras.io_utils import ExportHelper
 import getopt
 import traceback
 
-#"""
-#Name: 'Quake Model 5 (.md5)...'
-#Blender: 263
-#Group: 'Export'
-#Tooltip: 'Export a Quake Model 5 File'
-#
-#credit to der_ton for the 2.4x Blender export script
-#"""
+bl_info = {
+  "name": "Export MD5 format (.md5mesh, .md5anim)",
+  "author": "OpenTechEngine",
+  "version": (1,0,0),
+  "blender": (2, 6, 3),
+  "api": 31847,
+  "location": "File > Export > Skeletal Mesh/Animation Data (.md5mesh/.md5anim)",
+  "description": "Exports MD5 Format (.md5mesh, .md5anim)",
+  "warning": "See source code for list of authors",
+  "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.5/Py/Scripts/File_I-O/idTech4_md5",
+  "tracker_url": "https://github.com/OpenTechEngine/ModelingTools",
+  "category": "Import-Export"
+}
 
-bl_info = { # changed from bl_addon_info in 2.57 -mikshaw
-    "name": "Export MD5 format (.md5mesh, .md5anim)",
-    "author": "OpenTechEngine",
-    "version": (1,0,0),
-    "blender": (2, 6, 3),
-    "api": 31847,
-    "location": "File > Export > Skeletal Mesh/Animation Data (.md5mesh/.md5anim)",
-    "description": "Exports MD5 Format (.md5mesh, .md5anim)",
-    "warning": "See source code for list of authors",
-    "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.5/Py/"\
-        "Scripts/File_I-O/idTech4_md5",
-    "tracker_url": "https://github.com/OpenTechEngine/ModelingTools",
-    "category": "Import-Export"}
-
-''' credits to community:
-der_ton, original Blender 2.4 version
-Paul Zirkle aka Keless, Blender 2.5 port
-motorsep, Blender 2.62 port
-kat, tests and community site
-mikshaw, Sauerbraten support
-MCampagnini
-ivar
-
-links:
-http://wiki.blender.org/index.php/Extensions:2.5/Py/Scripts/File_I-O/idTech4_md5
-http://www.katsbits.com/smforum/index.php?topic=167.0
-'''
 
 class Typewriter(object):
   def print_info(message):
@@ -76,22 +55,26 @@ class Typewriter(object):
   warn = print_warn
   error = print_error
 
-#MATH UTILTY
-
 class MD5Math(object):
   def getminmax(listofpoints):
     if len(listofpoints[0]) == 0:
-        return ([0,0,0],[0,0,0])
+        return ([0, 0, 0], [0, 0, 0])
     min = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
     max = [listofpoints[0][0], listofpoints[1][0], listofpoints[2][0]]
     if len(listofpoints[0])>1:
       for i in range(1, len(listofpoints[0])):
-        if listofpoints[i][0]>max[0]: max[0]=listofpoints[i][0]
-        if listofpoints[i][1]>max[1]: max[1]=listofpoints[i][1]
-        if listofpoints[i][2]>max[2]: max[2]=listofpoints[i][2]
-        if listofpoints[i][0]<min[0]: min[0]=listofpoints[i][0]
-        if listofpoints[i][1]<min[1]: min[1]=listofpoints[i][1]
-        if listofpoints[i][2]<min[2]: min[2]=listofpoints[i][2]
+        if listofpoints[i][0]>max[0]:
+          max[0]=listofpoints[i][0]
+        if listofpoints[i][1]>max[1]:
+          max[1]=listofpoints[i][1]
+        if listofpoints[i][2]>max[2]:
+          max[2]=listofpoints[i][2]
+        if listofpoints[i][0]<min[0]:
+          min[0]=listofpoints[i][0]
+        if listofpoints[i][1]<min[1]:
+          min[1]=listofpoints[i][1]
+        if listofpoints[i][2]<min[2]:
+          min[2]=listofpoints[i][2]
     return (min, max)
 
 ################################################################################
@@ -812,17 +795,67 @@ class MD5Settings(object):
 class BlenderExtractor(object):
   class _StructureExtractor(object):
     # operates only with bpy.data
-    class _ArmatureChildren(object):
+    class _ArmatureRelated(object):
       def __init__(self, armature):
         self.armature = armature
         self.meshes = []
+        self.animations = []
 
       def __len__(self):
-        return len(self.meshes)  
+        return len(self.meshes)
 
       def AddMesh(self, blenderobject):
         self.meshes.append(blenderobject)
-      
+
+      def AddAnim(self, blenderobject):
+        self.animations.append(blenderobject)
+
+    def populate_animations(self, structure_group):
+
+      # we roll over all animations in blender and
+      # check if they have our bones in data_path
+      # in case yes, this is valid for our armature and will be added to list
+
+      # dict of our bones
+      armature_bones = structure_group.armature.data.bones
+
+      # Dirty hack, here, however data_path contains a string of kind:
+      # 'pose.bones["Torso"].location' FIXME
+      data_path_matcher = re.compile('pose.bones\["(.*)"\]')
+
+      for animation in bpy.data.actions:
+        for fcurve_index in range(len(animation.fcurves)):
+          data_path = animation.fcurves[fcurve_index].data_path
+          match_groups = data_path_matcher.match(data_path)
+          if match_groups is not None:
+            data_path_bone = match_groups.group(1)
+            if armature_bones.get(data_path_bone):
+              structure_group.AddAnim(animation)
+              # One match is enough to indicate it belongs for this armature
+              break
+      #print("animations for this armature "+str(structure_group.animations))
+
+    def armatureless_check(self):
+      # objects without armature
+      for blender_object in bpy.data.objects:
+        if (blender_object.type == 'MESH'):
+          # we search for objects with no related armature
+          armature = 0
+          for group in self.groups:
+            for grouped_mesh in group.meshes:
+              if grouped_mesh == blender_object:
+                # group was found
+                armature = 1
+                break
+          # not found
+          if armature == 0:
+            # we should call .lwo or .ase exporter for these
+            Typewriter.warn("Non-armature mesh found: "+blender_object.name)
+            new_group = self._ArmatureRelated(None)
+            new_group.AddMesh(blender_object)
+            # MD5 cant do these
+            #self.groups.append(new_group)
+
     def __init__(self):
       # structure lookup can only be done via armature, as it seems to be singly linked
       self.groups = []
@@ -830,38 +863,22 @@ class BlenderExtractor(object):
       # armature and child objects
       for blender_object in bpy.data.objects:
         if (blender_object.type == 'ARMATURE') and ( len(blender_object.children) > 0 ):
-          new_group = self._ArmatureChildren(blender_object)
+          new_group = self._ArmatureRelated(blender_object)
 
-          # meshes animated by this armature are added so they can be in same MD5MeshFormat object
+          # all meshes on this armature are added so they can be in same MD5MeshFormat object
           for child in blender_object.children:
             if (child.type == 'MESH'):
               new_group.AddMesh(child)
-            
-          # type check can leave them empty, aka no animated meshes by this skeleton
+
+          # type check can leave them empty, aka no meshes on this armature
           if len(new_group) > 0:
+            self.populate_animations(new_group)
             self.groups.append(new_group)
 
-      # unanimated objects
-      for blender_object in bpy.data.objects:
-        if (blender_object.type == 'MESH'):
-          # we search for objects with no related armature
-          animated = 0
-          for group in self.groups:
-            for grouped_mesh in group.meshes:
-              if grouped_mesh == blender_object:
-                # group was found
-                animated = 1
-                break
-          # not found
-          if animated == 0:
-            # we should call .lwo or .ase exporter for these
-            Typewriter.warn("Non-animated mesh found: "+blender_object.name)
-            new_group = self._ArmatureChildren(None)
-            new_group.AddMesh(blender_object)
-            # MD5 cant do these
-            #self.groups.append(new_group)
+      # catch all MESH objects not belonging to armature and warn
+      self.armatureless_check()
 
-  class _DataExtractor(object):
+  class _MeshDataExtractor(object):
     class _JointExtractor(object):
 
       def create_joint(self, name, matrix, parent_id):
@@ -921,7 +938,7 @@ class BlenderExtractor(object):
         
         for bone in self.armature.data.bones:
           # search root bone
-          if( not bone.parent ): 
+          if not bone.parent:
             Typewriter.info( "Armature: "+self.armature.name+" root bone: " + bone.name )
             self.recurse_bone(bone)
 
@@ -944,7 +961,7 @@ class BlenderExtractor(object):
               trl_pos_x, trl_pos_y, trl_pos_z = mathutils.Vector((pos_x, pos_y, pos_z))*inv_trans_bone_matrix
 
               new_weight = self._new_mesh.Weight(bone_index, bias, trl_pos_x, trl_pos_y, trl_pos_z)
-              #print("created weight with orig \nx: %f, y: %f, z: %f after matrix translation\nx: %f, y: %f, z: %f" % (pos_x, pos_y, pos_z, trl_pos_x, trl_pos_y, trl_pos_z))
+
               if self.firstweight is None:
                 self.firstweight = new_weight.index
 
@@ -1040,7 +1057,7 @@ class BlenderExtractor(object):
             for loop_index in polygon.loop_indices:
               vertex_index = self._blender_mesh.data.loops[loop_index].vertex_index
 
-              print("    Vertex: %d" % vertex_index) # development printout
+              #print("    Vertex: %d" % vertex_index) # development printout
 
               vertex = self._blender_mesh.data.vertices[vertex_index]
               loc_vector = vertex.co
@@ -1048,12 +1065,12 @@ class BlenderExtractor(object):
               try:
                 # vertex has uv
                 loc_vector = self._blender_mesh.data.uv_layers.active.data[loop_index].uv
-                print("    UV: %r" % loc_vector) # development printout
+                #print("    UV: %r" % loc_vector) # development printout
               except AttributeError:
                 # vertex does not have uv
                 Typewriter.warn("vertex without uv: %i" % vertex_index)
 
-              print(loc_vector)
+              #print(loc_vector)
               temp_vert = self._TempVert(loc_vector[0], loc_vector[1], loc_vector[2])
 
               if self._temp_vert_uniq(vertex_index, temp_vert):
@@ -1094,12 +1111,12 @@ class BlenderExtractor(object):
              (polygon.vertices[0] == polygon.vertices[1]) or \
              (polygon.vertices[0] == polygon.vertices[2]) or \
              (polygon.vertices[1] == polygon.vertices[2]):
-            Typewriter.warn( "Degenerate face: "+str(polygon))
+            Typewriter.warn( "Degenerate polygon: %i" % polygon.index)
             return False
           # check same material_index as rest of the mesh
           elif polygon.material_index != material_index:
             Typewriter.warn( "Invalid material on polygon: %i" % polygon.index)
-            # very temp development skip here!
+            # we skip here, however we should not, but for the time being..
             return True
           else:
             return True
@@ -1109,10 +1126,7 @@ class BlenderExtractor(object):
           self._blender_mesh = blender_mesh
           self._bone_dict = bone_dict
           self._vertextractor = self._VertExtractor(self._new_mesh, self._blender_mesh, self._bone_dict)
-          '''
-          for polygon in self.mesh.data.polygons:
-            print("Polygon index: %d, length: %d" % (polygon.index, polygon.loop_total))
-          '''
+
           for polygon in self._blender_mesh.data.polygons:
             if self.polygon_validate(polygon, self._blender_mesh.data.materials[0].name):
               # polygon vertice extractor
@@ -1142,10 +1156,10 @@ class BlenderExtractor(object):
           
 
     def __init__(self, format_object, structure_group, scale):
-      Typewriter.info(str(structure_group.armature)) # development printout TODO
-      Typewriter.info(str(structure_group.meshes)) # development printout TODO
+      #Typewriter.info(str(structure_group.armature)) # development printout TODO
+      #Typewriter.info(str(structure_group.meshes)) # development printout TODO
 
-      if (structure_group.armature != None):
+      if (structure_group.armature is not None):
         joint_extractor = self._JointExtractor(format_object, structure_group.armature, scale)
         bone_dict = joint_extractor.get_bone_dict()
 
@@ -1153,24 +1167,59 @@ class BlenderExtractor(object):
       for mesh in structure_group.meshes:
         self._MeshExtractor(format_object, mesh, scale, bone_dict)
 
-    
-  def __init__(self):
+    class _AnimDataExtractor(object):
 
+      class _HierarchyExtractor(object):
+        def __init__(self):
+          None
+
+      class _BoundExtractor(object):
+        def __init__(self):
+          None
+
+      class _BaseFrameExtractor(object):
+        def __init__(self):
+          None
+
+      class _FrameExtractor(object):
+        def __init__(self):
+          None
+
+      def __init__(self, format_object, structure_group, scale):
+        None
+
+  def __init__(self):
     # extracting structure: armature and meshes that belong to it
     self.structure = self._StructureExtractor()
     
     # development static one model style
     if len(self.structure.groups) > 0:
       for structure_group in self.structure.groups:
-        format_object = MD5MeshFormat('testing extractor')
-        self._DataExtractor(format_object, structure_group, 1)
-        print(str(format_object))
-        file = open('format_object.md5mesh', 'w')
-        file.write(str(format_object))
+        # md5mesh
+        mesh_format_object = MD5MeshFormat('testing extractor')
+        self._MeshDataExtractor(mesh_format_object, structure_group, 1)
+        #print(str(format_object))
+        file = open(structure_group.armature.name+'.md5mesh', 'w')
+        file.write(str(mesh_format_object))
         file.close()
+
+        # md5anims
+        '''
+        if len(structure_group.animations) > 0:
+          for animation in structure_group.animations:
+            anim_format_object = MD5AnimFormat('testing extractor', 24)
+            self._AnimDataExtractor(anim_format_object, structure_group, 1)
+
+            file = open(structure_group.armature.name+'.'+animation.name+'.md5anim', 'w')
+            file.write(str(anim_format_object))
+            file.close()
+        else:
+          Typewriter.warn('No animations to export. Create at least idle animation.')
+        '''
+
     else:
       Typewriter.error('No valid meshes to export')
-  
+
 class MD5Save(object):
   def __init__(self, settings):
     self.settings = settings
@@ -1182,7 +1231,6 @@ class MD5Save(object):
     self.rangeend = 0
     self.BONES = {}
 
-    
   def armature(self):
 
     #first pass on selected data, pull one skeleton
