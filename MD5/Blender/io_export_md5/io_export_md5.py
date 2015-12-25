@@ -959,39 +959,20 @@ class BlenderExtractor(object):
     else:
       Typewriter.error('No valid meshes to export')
 
-##########
+################################################################################
 
 #export class registration and interface
 class ExportMD5(bpy.types.Operator):
   '''Export to idTech 4 MD5 (.md5mesh .md5anim)'''
   bl_idname = "export.md5"
   bl_label = 'idTech 4 MD5'
-  
+
   logenum = [("console","Console","log to console"),
              ("append","Append","append to log file"),
              ("overwrite","Overwrite","overwrite log file")]
-             
-  #search for list of actions to export as .md5anims
-  #md5animtargets = []
-  #for anim in bpy.data.actions:
-  #	md5animtargets.append( (anim.name, anim.name, anim.name) )
-  	
-  #md5animtarget = None
-  #if( len( md5animtargets ) > 0 ):
-  #	md5animtarget = EnumProperty( name="Anim", items = md5animtargets, description = "choose animation to export", default = md5animtargets[0] )
-  	
-  exportModes = [("mesh & anim", "Mesh & Anim", "Export .md5mesh and .md5anim files."),
-  		 ("anim only", "Anim only.", "Export .md5anim only."),
-  		 ("mesh only", "Mesh only.", "Export .md5mesh only.")]
 
-  filepath = StringProperty(subtype = 'FILE_PATH',name="File Path", description="Filepath for exporting", maxlen= 1024, default= "")
-  md5name = StringProperty(name="MD5 Name", description="MD3 header name / skin path (64 bytes)",maxlen=64,default="")
-  md5exportList = EnumProperty(name="Exports", items=exportModes, description="Choose export mode.", default='mesh & anim')
-  #md5logtype = EnumProperty(name="Save log", items=logenum, description="File logging options",default = 'console')
-  md5scale = FloatProperty(name="Scale", description="Scale all objects from world origin (0,0,0)", min=0.001, max=1000.0, default=1.0,precision=6)
-  #md5offsetx = FloatProperty(name="Offset X", description="Transition scene along x axis",default=0.0,precision=5)
-  #md5offsety = FloatProperty(name="Offset Y", description="Transition scene along y axis",default=0.0,precision=5)
-  #md5offsetz = FloatProperty(name="Offset Z", description="Transition scene along z axis",default=0.0,precision=5)
+  directory = StringProperty(subtype = 'DIR_PATH',name="", description="Export target directory", maxlen= 1024, default= "")
+  scale = FloatProperty(name="Scale", description="Scale all objects from world origin (0,0,0)", min=0.001, max=1000.0, default=1.0,precision=6)
 
   def setup_typewriter(self):
     def print_info(message):
@@ -1010,29 +991,21 @@ class ExportMD5(bpy.types.Operator):
   def execute(self, context):
     # FIXME bug, exports only one, GUI enters only one filepath
     self.setup_typewriter()
-    global scale
-    scale = self.md5scale
-    settings = MD5Settings(savepath = self.properties.filepath,
-                           exportMode = self.properties.md5exportList
-                           )
-    serializer = MD5Save(settings)
-    serializer.save_md5()
-
+    
+    BlenderExtractor(self.properties.directory, self.properties.scale)
     return {'FINISHED'}
 
   def invoke(self, context, event):
         WindowManager = context.window_manager
-        # fixed for 2.56? Katsbits.com (via Nic B)
-        # original WindowManager.add_fileselect(self)
         WindowManager.fileselect_add(self)
-        return {"RUNNING_MODAL"}  
+        return {"RUNNING_MODAL"}
 
 class console(object):
   # blender uses it's own, can't override it so we set it only here
   def exception_handler(self, type, value, trace):
     Typewriter.error(''.join(traceback.format_tb(trace)))
     Typewriter.error(type.__name__+": "+str(value))
-  
+
   def get_parameters(self):
     accepted_arguments = ["output-dir=", "scale=", "help"]
 
