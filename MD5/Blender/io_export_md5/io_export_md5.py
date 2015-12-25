@@ -1221,6 +1221,11 @@ class BlenderExtractor(object):
         data array and increment the position each time you have to replace a
         value to a component.
         '''
+        if parent:
+          self._arm_bone_dict[bone.name] = parent
+        else:
+          self._arm_bone_dict[bone.name] = None
+
         self.format_object.Hierarchy.Joint(bone.name, parent_id, 63, self._start_index)
         self._start_index = self._start_index + 6
         self.create_baseframe(bone_matrix)
@@ -1230,6 +1235,9 @@ class BlenderExtractor(object):
           for child in bone.children:
             self.recurse_bone(child, bone, our_id)
 
+      def get_arm_bone_dict(self):
+        return self._arm_bone_dict
+
 
       def __init__(self, format_object, armature, scale):
         self.format_object = format_object
@@ -1237,6 +1245,7 @@ class BlenderExtractor(object):
         self._joint_index = 0
         self._start_index = 0
         self._scale = scale
+        self._arm_bone_dict = {}
 
         for bone in self.armature.data.bones:
           # search root bone
@@ -1273,10 +1282,11 @@ class BlenderExtractor(object):
 
 
     class _FrameExtractor(object):
-      def __init__(self, format_object, armature, animation):
+      def __init__(self, format_object, armature, animation, arm_bone_dict):
         self._format_object = format_object
         self._armature = armature
         self._animation = animation
+        self._arm_bone_dict = arm_bone_dict
 
         first_frame = int(self._animation.frame_range[0])
         last_frame = int(self._animation.frame_range[1])
@@ -1287,48 +1297,40 @@ class BlenderExtractor(object):
           new_frame = self._format_object.Frame()
 
           bpy.context.scene.frame_set(frame_index)
+
           pose = self._armature.pose
           for bonename in self._armature.data.bones.keys():
             posebonemat = mathutils.Matrix(pose.bones[bonename].matrix ) # transformation of this PoseBone including constraints
-            try:
-              bone  = self.BONES[bonename]
-            except:
-              Typewriter.warn( "Found a PoseBone animating a bone that is not part of the exported armature: " + bonename )
-              continue
-            if bone.parent: # need parentspace-matrix
-              parentposemat = mathutils.Matrix(pose.bones[bone.parent.name].matrix ) # transformation of this PoseBone including constraints
+            
+            if self._arm_bone_dict[bonename]: # need parent space-matrix
+              parentposemat = mathutils.Matrix(pose.bones[self._arm_bone_dict[bonename].name].matrix ) # transformation of this PoseBone including constraints
               parentposemat.invert()
               posebonemat = parentposemat * posebonemat
             else:
-              posebonemat = self.thearmature.matrix_world * posebonemat
-            loc = [posebonemat.col[3][0], posebonemat.col[3][1], posebonemat.col[3][2]]
+              posebonemat = self._armature.matrix_world * posebonemat
+              
+            loc_x = posebonemat.col[3][0]
+            loc_y = posebonemat.col[3][1]
+            loc_z = posebonemat.col[3][2]
             rot = posebonemat.to_quaternion()
             rot.normalize()
-            rot = [rot.w,rot.x,rot.y,rot.z]
 
-            animation.addkeyforbone(bone.id, loc, rot)
-            new_frame.FramePosition(7, 6, 5, 4, 3, 2)
-            
-            
+            if rot.w>0:
+              qx,qy,qz = -rot.x,-rot.y,-rot.z
+
+            # FIXME use scale
+            #buf = buf + "\t%f %f %f %f %f %f\n" % (x*scale, y*scale, z*scale, qx,qy,qz)
+
+            new_frame.FramePosition(loc_x, loc_y, loc_z, qx, qy, qz)
+
           # next frame
           frame_index = frame_index + 1
 
-
-    class BlobBob(object):
-      def __init__(self):
-        b = MD5AnimFormat('commandline from inline code', 24)
-        b.Hierarchy.Joint('Legs', -1, 63, 0)
-        b.Bounds.Bound(1 ,2 ,3 ,4, 5 ,6)
-        b.BaseFrame.BasePosition(7, 8, 9, 1, 2, 3)
-        new_frame = b.Frame()
-        new_frame.FramePosition(7, 6, 5, 4, 3, 2)
-        print(b)
-
     def __init__(self, format_object, structure_group, animation, scale):
-      self._HierarchyBaseExtractor(format_object, structure_group.armature, scale)
+      self._hierarchyextractor = self._HierarchyBaseExtractor(format_object, structure_group.armature, scale)
+      self._arm_bone_dict = self._hierarchyextractor.get_arm_bone_dict()
       self._BoundExtractor(format_object, structure_group.meshes, animation, scale)
-      #self._FrameExtractor(format_object, structure_group.armature, animation)
-      None
+      self._FrameExtractor(format_object, structure_group.armature, animation, self._arm_bone_dict)
 
   def __init__(self):
     # extracting structure: armature and meshes that belong to it
