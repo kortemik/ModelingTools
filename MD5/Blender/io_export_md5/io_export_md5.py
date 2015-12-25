@@ -959,7 +959,7 @@ class BlenderExtractor(object):
               bone_matrix = self._bone_dict[bone_name][1]
               inv_trans_bone_matrix = bone_matrix.transposed().inverted()
               trl_pos_x, trl_pos_y, trl_pos_z = mathutils.Vector((pos_x, pos_y, pos_z))*inv_trans_bone_matrix
-
+              # FIXME ADD SCALE HERE
               new_weight = self._new_mesh.Weight(bone_index, bias, trl_pos_x, trl_pos_y, trl_pos_z)
 
               if self.firstweight is None:
@@ -1167,26 +1167,168 @@ class BlenderExtractor(object):
       for mesh in structure_group.meshes:
         self._MeshExtractor(format_object, mesh, scale, bone_dict)
 
-    class _AnimDataExtractor(object):
+  class _AnimExtractor(object):
 
-      class _HierarchyExtractor(object):
-        def __init__(self):
-          None
+    class _HierarchyBaseExtractor(object):
+      # does basically the same as in mesh armature extraction
+      # extracts hierarchy and baseframe
 
-      class _BoundExtractor(object):
-        def __init__(self):
-          None
+      def create_baseframe(self, matrix):
+        # local variable for transformations
+        self.matrix = matrix
 
-      class _BaseFrameExtractor(object):
-        def __init__(self):
-          None
+        pos1 = self.matrix.col[3][0]
+        pos2 = self.matrix.col[3][1]
+        pos3 = self.matrix.col[3][2]
 
-      class _FrameExtractor(object):
-        def __init__(self):
-          None
+        bquat = self.matrix.to_quaternion()
+        bquat.normalize()
+        qx = bquat.x
+        qy = bquat.y
+        qz = bquat.z
+        if bquat.w > 0:
+          qx = -qx
+          qy = -qy
+          qz = -qz
 
-      def __init__(self, format_object, structure_group, scale):
-        None
+        self.format_object.BaseFrame.BasePosition(pos1*self._scale, pos2*self._scale, pos3*self._scale, qx, qy, qz)
+
+      def recurse_bone(self, bone, parent = None, parent_id = None):
+        # only recurse to attached bones
+        if (parent and not bone.parent.name == parent.name):
+          return
+        elif parent is None:
+          parent_id = -1
+
+        our_id = self._joint_index
+        self._joint_index = self._joint_index + 1
+
+        bone_matrix = self.armature.matrix_world * bone.matrix_local
+
+        # TODO 63 means this animation involves all possible
+        # animation actions, loc rot scale, you name it?
+        # also startindex 6 means all are recalculated:
+        # this can be done with a peek into animation
+        # and checking for location/rotation/scale fcurves
+        # on our bone
+        '''
+        "name"   parent flags startIndex
+        flags variable description: starting from the right, the frist three
+        bits are for the position vector and the next three for the orientation
+        quaternion. If a bit is set, then you have to replace the corresponding
+        (x, y, z) component by a value from the frame's data. Which value? This
+        is given by the startIndex. You begin at the startIndex in the frame's
+        data array and increment the position each time you have to replace a
+        value to a component.
+        '''
+        self.format_object.Hierarchy.Joint(bone.name, parent_id, 63, self._start_index)
+        self._start_index = self._start_index + 6
+        self.create_baseframe(bone_matrix)
+
+        # attached bones
+        if( bone.children ):
+          for child in bone.children:
+            self.recurse_bone(child, bone, our_id)
+
+
+      def __init__(self, format_object, armature, scale):
+        self.format_object = format_object
+        self.armature = armature
+        self._joint_index = 0
+        self._start_index = 0
+        self._scale = scale
+
+        for bone in self.armature.data.bones:
+          # search root bone
+          if not bone.parent:
+            Typewriter.info( "Armature animation: "+self.armature.name+" root bone: " + bone.name )
+            self.recurse_bone(bone)
+
+
+    class _BoundExtractor(object):
+      # TODO performance seems suboptimal
+      def __init__(self, format_object, meshes, animation, scale):
+        scene = bpy.context.scene
+        first_frame = int(animation.frame_range[0])
+        last_frame = int(animation.frame_range[1])
+
+        for i in range(first_frame, last_frame+1):
+          corners = []
+          scene.frame_set(i)
+
+          for mesh in meshes:
+            (lx, ly, lz ) = mesh.location
+            bbox = mesh.bound_box
+            matrix = mathutils.Matrix([[1.0,  0.0, 0.0, 0.0],
+              [0.0,  1.0, 0.0, 0.0],
+              [0.0,  1.0, 1.0, 0.0],
+              [0.0,  0.0, 0.0, 1.0],
+              ])
+            for v in bbox:
+              vecp = mathutils.Vector((v[0], v[1], v[2]))
+              corners.append(vecp*matrix)
+
+          (min, max) = MD5Math.getminmax(corners)
+          format_object.Bounds.Bound(min[0]*scale, min[1]*scale, min[2]*scale, max[0]*scale, max[1]*scale, max[2]*scale)
+
+
+    class _FrameExtractor(object):
+      def __init__(self, format_object, armature, animation):
+        self._format_object = format_object
+        self._armature = armature
+        self._animation = animation
+
+        first_frame = int(self._animation.frame_range[0])
+        last_frame = int(self._animation.frame_range[1])
+
+        frame_index = first_frame
+
+        for i in range(first_frame, last_frame+1):
+          new_frame = self._format_object.Frame()
+
+          bpy.context.scene.frame_set(frame_index)
+          pose = self._armature.pose
+          for bonename in self._armature.data.bones.keys():
+            posebonemat = mathutils.Matrix(pose.bones[bonename].matrix ) # transformation of this PoseBone including constraints
+            try:
+              bone  = self.BONES[bonename]
+            except:
+              Typewriter.warn( "Found a PoseBone animating a bone that is not part of the exported armature: " + bonename )
+              continue
+            if bone.parent: # need parentspace-matrix
+              parentposemat = mathutils.Matrix(pose.bones[bone.parent.name].matrix ) # transformation of this PoseBone including constraints
+              parentposemat.invert()
+              posebonemat = parentposemat * posebonemat
+            else:
+              posebonemat = self.thearmature.matrix_world * posebonemat
+            loc = [posebonemat.col[3][0], posebonemat.col[3][1], posebonemat.col[3][2]]
+            rot = posebonemat.to_quaternion()
+            rot.normalize()
+            rot = [rot.w,rot.x,rot.y,rot.z]
+
+            animation.addkeyforbone(bone.id, loc, rot)
+            new_frame.FramePosition(7, 6, 5, 4, 3, 2)
+            
+            
+          # next frame
+          frame_index = frame_index + 1
+
+
+    class BlobBob(object):
+      def __init__(self):
+        b = MD5AnimFormat('commandline from inline code', 24)
+        b.Hierarchy.Joint('Legs', -1, 63, 0)
+        b.Bounds.Bound(1 ,2 ,3 ,4, 5 ,6)
+        b.BaseFrame.BasePosition(7, 8, 9, 1, 2, 3)
+        new_frame = b.Frame()
+        new_frame.FramePosition(7, 6, 5, 4, 3, 2)
+        print(b)
+
+    def __init__(self, format_object, structure_group, animation, scale):
+      self._HierarchyBaseExtractor(format_object, structure_group.armature, scale)
+      self._BoundExtractor(format_object, structure_group.meshes, animation, scale)
+      #self._FrameExtractor(format_object, structure_group.armature, animation)
+      None
 
   def __init__(self):
     # extracting structure: armature and meshes that belong to it
@@ -1204,18 +1346,32 @@ class BlenderExtractor(object):
         file.close()
 
         # md5anims
+        # TODO these are quite dirty for using context
+        # it should be all fixed to access fcurves and data instead
+        # also the Extractor classes use context
+        '''
+        bpy.context.object.animation_data.action.fcurves[0].evaluate(5)
+        #~ -3.2612
+        bpy.context.object.animation_data.action.fcurves[0].keyframe_points[0].co
+        #~ Vector((1.0, -3.2612))
+        bpy.context.object.animation_data.action.fcurves[0].keyframe_points[0].interpolation
+        #~ 'BEZIER'
         '''
         if len(structure_group.animations) > 0:
           for animation in structure_group.animations:
-            anim_format_object = MD5AnimFormat('testing extractor', 24)
-            self._AnimDataExtractor(anim_format_object, structure_group, 1)
+            # set animation for context
+            structure_group.armature.animation_data.action = animation
+            frames_per_second = bpy.context.scene.render.fps
+            
+            anim_format_object = MD5AnimFormat('testing extractor', frames_per_second)
+            self._AnimExtractor(anim_format_object, structure_group, animation, 1)
 
             file = open(structure_group.armature.name+'.'+animation.name+'.md5anim', 'w')
             file.write(str(anim_format_object))
             file.close()
         else:
           Typewriter.warn('No animations to export. Create at least idle animation.')
-        '''
+
 
     else:
       Typewriter.error('No valid meshes to export')
