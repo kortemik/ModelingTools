@@ -14,28 +14,33 @@ You should have received a copy of the GNU General Public License along with
 this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+'''
+This script is based on ideas found on
+Blender MD5 export 2.63 by keless.
+It can be found on http://www.katsbits.com/tools/
+'''
+
 import os
 import sys
 import re
 
 import mathutils
 import bpy
-from bpy.props import StringProperty,EnumProperty,FloatProperty
-from bpy_extras.io_utils import ExportHelper
+from bpy.props import StringProperty, FloatProperty
 
 import getopt
 import traceback
 
 bl_info = {
   "name": "Export MD5 format (.md5mesh, .md5anim)",
-  "author": "Mikko Kortelainen / OpenTechEngine",
+  "author": "Mikko Kortelainen / OpenTechEngine <mikko.kortelainen@fail-safe.net>",
   "version": (1, 0, 0),
   "blender": (2, 6, 3),
   "api": 31847,
   "location": "File > Export > Skeletal Mesh/Animation Data (.md5mesh/.md5anim)",
   "description": "Exports MD5 Format (.md5mesh, .md5anim)",
   "warning": "",
-  "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.5/Py/Scripts/File_I-O/idTech4_md5",
+  "wiki_url": "https://github.com/OpenTechEngine/modWiki",
   "tracker_url": "https://github.com/OpenTechEngine/ModelingTools",
   "category": "Import-Export"
 }
@@ -341,7 +346,7 @@ class MD5AnimFormat(MD5Format):
     self._frames = [] # list of frames
 
   def __str__(self):
-    # FIXME hardcoded 6 animated components per bone because animation extractor uses 63
+    # TODO hardcoded 6 animated components per bone because animation extractor uses 63
     return "MD5Version %i\ncommandline \"%s\"\n\nnumFrames %i\nnumJoints %i\nframeRate %i\nnumAnimatedComponents %i\n\n%s%s%s%s" % \
       (self._version, self._commandline, len(self._frames), len(self.Hierarchy), self._framerate, len(self.BaseFrame)*6, \
        str(self.Hierarchy), \
@@ -931,7 +936,7 @@ class BlenderExtractor(object):
         file.close()
 
         # md5anims
-        # TODO these are quite dirty for using context
+        # TODO these are quite hacks dirty for using context
         # it should be all fixed to access fcurves and data instead
         # also the Extractor classes use context
         '''
@@ -963,9 +968,9 @@ class BlenderExtractor(object):
 
 #export class registration and interface
 class ExportMD5(bpy.types.Operator):
-  '''Export to idTech 4 MD5 (.md5mesh .md5anim)'''
-  bl_idname = "export.md5"
-  bl_label = 'idTech 4 MD5'
+  '''Export to MD5 Mesh and Anim (.md5mesh .md5anim)'''
+  bl_idname = "export.md5_obj"
+  bl_label = 'MD5Export'
 
   logenum = [("console","Console","log to console"),
              ("append","Append","append to log file"),
@@ -989,11 +994,12 @@ class ExportMD5(bpy.types.Operator):
     Typewriter.error = print_error
 
   def execute(self, context):
-    # FIXME bug, exports only one, GUI enters only one filepath
     self.setup_typewriter()
-    
+
     BlenderExtractor(self.properties.directory, self.properties.scale)
+    Typewriter.info("Export complete")
     return {'FINISHED'}
+
 
   def invoke(self, context, event):
         WindowManager = context.window_manager
@@ -1069,7 +1075,7 @@ class console(object):
 # blender gui module function
 def menu_func(self, context):
   default_path = os.path.splitext(bpy.data.filepath)[0]
-  self.layout.operator(ExportMD5.bl_idname, text="idTech 4 MD5 (.md5mesh .md5anim)", icon='BLENDER').filepath = default_path
+  self.layout.operator(ExportMD5.bl_idname, text="MD5 Mesh and Anim (.md5mesh .md5anim)", icon='BLENDER').directory = default_path
 
 # blender gui module register  
 def register():
